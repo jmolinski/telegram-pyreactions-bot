@@ -13,8 +13,13 @@ from db import get_conn
 from collections import defaultdict
 import emoji
 
+with open(".env") as f:
+    log_file = json.loads(f.read())["log_file"]
+
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
+    level=logging.DEBUG,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    handlers=[logging.FileHandler("log_file.log"), logging.StreamHandler()],
 )
 
 logger = logging.getLogger(__name__)
@@ -106,7 +111,7 @@ def send_message(bot, chat_id: int, parent_id: int, markup) -> MsgWrapper:
 
 
 def save_message_to_db(msg: MsgWrapper, is_bot_reaction=False):
-    print("saved", is_bot_reaction)
+    logger.info("Savin message to db")
     sql = (
         "INSERT INTO message (id, chat_id, is_reply, parent, is_bot_reaction) \n"
         f"VALUES (?, ?, ?, ?, ?);"
@@ -150,7 +155,6 @@ def get_updated_reactions(chat_id, parent_id):
     show_hide = "hide" if expanded else "show"
     markup.append(InlineKeyboardButton("❓", callback_data=show_hide + "_reactions"))
 
-    print("markups: ", len(markup))
     return get_markup(markup)
 
 
@@ -219,6 +223,7 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
 
 
 def add_single_reaction(parent, author, author_id, text):
+    logger.info("Hangling add/remove reaction")
     with get_conn() as conn:
         ret = conn.execute(
             "SELECT id from reaction where parent=? and author_id=? and type=?;",
@@ -227,10 +232,10 @@ def add_single_reaction(parent, author, author_id, text):
         reaction_exists = list(ret.fetchall())
 
         if reaction_exists:
-            print("deleting")
+            logger.info("deleting")
             conn.execute("DELETE from reaction where id=?;", (reaction_exists[0][0],))
         else:
-            print("adding")
+            logger.info("adding")
             sql = "INSERT INTO reaction (parent, author, type, author_id) VALUES (?, ?, ?, ?);"
             conn.execute(sql, (parent, author, text, author_id))
 
@@ -248,7 +253,7 @@ def toggle_reaction(bot, parent, author, text, author_id, many=False):
 
 
 def receive_message(update: Update, context: CallbackContext) -> None:
-    print("msg received")
+    logger.info("Message received")
     if update.edited_message:
         # skip edits
         return
@@ -287,7 +292,7 @@ def receive_message(update: Update, context: CallbackContext) -> None:
 
 
 def echo_photo(update: Update, context: CallbackContext) -> None:
-    print("msg picture")
+    logger.info("Picture received")
     save_message_to_db(MsgWrapper(update["message"]))
 
 
@@ -335,7 +340,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
     author = get_name_from_author_obj(update["callback_query"]["from_user"])
     author_id = update["callback_query"]["from_user"]["id"]
 
-    print("button:", callback_data, author, update)
+    logger.info(f"button: {callback_data}, {author}\nUpdate: {update}")
 
     if callback_data.endswith("reactions"):
         show_hide_summary(
@@ -343,7 +348,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
         )
     else:
         if len(callback_data) > 3:
-            print("invalid reaction callback data")
+            logger.warning("invalid reaction callback data")
             return
 
         toggle_reaction(
@@ -362,13 +367,6 @@ def main() -> None:
     updater = Updater(token, workers=1)
 
     dispatcher = updater.dispatcher
-    process_update = dispatcher.process_update
-
-    def monkey_process_update(*args, **kwargs):
-        print("processing update")
-        process_update(*args, **kwargs)
-
-    dispatcher.process_update = monkey_process_update
 
     dispatcher.add_handler(
         MessageHandler(Filters.text & ~Filters.command, receive_message)

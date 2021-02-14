@@ -2,7 +2,6 @@ import sqlite3
 from contextlib import contextmanager
 
 
-
 @contextmanager
 def get_conn():
     c = sqlite3.connect("test.db")
@@ -11,6 +10,6 @@ def get_conn():
     c.close()
 
 
-with open('schema.sql') as f:
+with open("schema.sql") as f:
     with get_conn() as conn:
         conn.executescript(f.read())
