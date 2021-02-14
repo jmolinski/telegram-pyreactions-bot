@@ -26,6 +26,7 @@ logger = logging.getLogger(__name__)
 
 EMPTY_MSG = "\xad\xad"
 VARIANT_SELECTORS = {"\uFE0E", "\uFE0F"}
+INFORMATION_EMOJI = "ℹ️"
 
 EMOJI_CODES = {v for k, v in emoji.unicode_codes.EMOJI_ALIAS_UNICODE_ENGLISH.items()}
 
@@ -163,7 +164,9 @@ def get_updated_reactions(chat_id, parent_id):
             expanded = False
 
     show_hide = "hide" if expanded else "show"
-    markup.append(InlineKeyboardButton("❓", callback_data=show_hide + "_reactions"))
+    markup.append(
+        InlineKeyboardButton(INFORMATION_EMOJI, callback_data=show_hide + "_reactions")
+    )
 
     return get_markup(markup)
 
