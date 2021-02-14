@@ -25,6 +25,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 EMPTY_MSG = "\xad\xad"
+VARIANT_SELECTORS = {"\uFE0E", "\uFE0F"}
 
 EMOJI_CODES = {v for k, v in emoji.unicode_codes.EMOJI_ALIAS_UNICODE_ENGLISH.items()}
 
@@ -81,12 +82,21 @@ class MsgWrapper:
 
     @property
     def is_many_reactions(self):
-        return all(char_is_emoji(c) for c in self.text.strip())
+        text = "".join(
+            c for c in self.msg["text"].strip() if c not in VARIANT_SELECTORS
+        )
+        return all(char_is_emoji(c) for c in text)
 
     @property
     def text(self) -> str:
         if self.msg["text"].lower() == "xd":
             return "xD"
+
+        if self.is_many_reactions:
+            return "".join(
+                c for c in self.msg["text"].strip() if c not in VARIANT_SELECTORS
+            )
+
         return self.msg["text"].strip()
 
     @property
