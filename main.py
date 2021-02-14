@@ -11,6 +11,7 @@ from telegram.ext import (
 )
 from db import get_conn
 from collections import defaultdict
+import emoji
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -20,15 +21,28 @@ logger = logging.getLogger(__name__)
 
 EMPTY_MSG = "\xad\xad"
 
+EMOJI_CODES = {v for k, v in emoji.unicode_codes.EMOJI_ALIAS_UNICODE_ENGLISH.items()}
+
 
 def split_into_chunks(l, n):
     return [l[i : i + n] for i in range(0, len(l), n)]
+
+
+def char_is_emoji(character):
+    # print(character, character in codes, 'test')
+    return character in EMOJI_CODES
 
 
 def get_markup(items):
     return InlineKeyboardMarkup(
         inline_keyboard=split_into_chunks(items, 4),
     )
+
+
+def get_name_from_author_obj(data):
+    username = data["username"]
+    first_name = data["first_name"]
+    return username or first_name
 
 
 class MsgWrapper:
@@ -61,14 +75,22 @@ class MsgWrapper:
         return len(self.text) == 1 or self.text in ("+1", "-1", "xD")
 
     @property
+    def is_many_reactions(self):
+        return all(char_is_emoji(c) for c in self.text.strip())
+
+    @property
     def text(self) -> str:
         if self.msg["text"].lower() == "xd":
             return "xD"
-        return self.msg["text"]
+        return self.msg["text"].strip()
 
     @property
     def author(self) -> str:
-        return self.msg["from_user"]["username"]
+        return get_name_from_author_obj(self.msg["from_user"])
+
+    @property
+    def author_id(self) -> str:
+        return self.msg["from_user"]["id"]
 
 
 def send_message(bot, chat_id: int, parent_id: int, markup) -> MsgWrapper:
@@ -125,11 +147,10 @@ def get_updated_reactions(chat_id, parent_id):
         else:
             expanded = False
 
-        print(expanded)
-
     show_hide = "hide" if expanded else "show"
     markup.append(InlineKeyboardButton("❓", callback_data=show_hide + "_reactions"))
 
+    print("markups: ", len(markup))
     return get_markup(markup)
 
 
@@ -141,6 +162,21 @@ def update_message_markup(bot, chat_id, message_id, parent_id):
     )
 
 
+def get_text_for_expanded(parent):
+    with get_conn() as conn:
+        ret = conn.execute(
+            "SELECT type, author from reaction where parent=?;",
+            (parent,),
+        )
+        reactions = defaultdict(list)
+        for r in ret.fetchall():
+            reactions[r[0]].append(r[1])
+
+    return "\n".join(
+        key + ": " + ", ".join(reactioners) for key, reactioners in reactions.items()
+    )
+
+
 def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
     with get_conn() as conn:
         ret = conn.execute("SELECT chat_id from message where id=?;", (parent_id,))
@@ -149,7 +185,7 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
     with get_conn() as conn:
         opt_reactions_msg_id = list(
             conn.execute(
-                "SELECT id from message where is_bot_reaction and parent=?",
+                "SELECT id, expanded from message where is_bot_reaction and parent=?",
                 (parent_id,),
             ).fetchall()
         )
@@ -170,14 +206,23 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
         save_message_to_db(new_msg, is_bot_reaction=True)
     else:
         # updating existing reactions post
+        # if expanded update text
+        if opt_reactions_msg_id[0][1]:
+            bot.edit_message_text(
+                chat_id=chat_id,
+                message_id=opt_reactions_msg_id[0][0],
+                text=get_text_for_expanded(parent_id),
+                parse_mode="HTML",
+            )
+
         update_message_markup(bot, chat_id, opt_reactions_msg_id[0][0], parent_id)
 
 
-def toggle_reaction(bot, parent, author, text):
+def add_single_reaction(parent, author, author_id, text):
     with get_conn() as conn:
         ret = conn.execute(
-            "SELECT id from reaction where parent=? and author=? and type=?;",
-            (parent, author, text),
+            "SELECT id from reaction where parent=? and author_id=? and type=?;",
+            (parent, author_id, text),
         )
         reaction_exists = list(ret.fetchall())
 
@@ -186,23 +231,57 @@ def toggle_reaction(bot, parent, author, text):
             conn.execute("DELETE from reaction where id=?;", (reaction_exists[0][0],))
         else:
             print("adding")
-            sql = "INSERT INTO reaction (parent, author, type) VALUES (?, ?, ?);"
-            conn.execute(sql, (parent, author, text))
+            sql = "INSERT INTO reaction (parent, author, type, author_id) VALUES (?, ?, ?, ?);"
+            conn.execute(sql, (parent, author, text, author_id))
 
         conn.commit()
+
+
+def toggle_reaction(bot, parent, author, text, author_id, many=False):
+    if many:
+        for r in text:
+            add_single_reaction(parent, author, author_id, r)
+    else:
+        add_single_reaction(parent, author, author_id, text)
 
     add_delete_or_update_reaction_msg(bot, parent)
 
 
 def receive_message(update: Update, context: CallbackContext) -> None:
     print("msg received")
+    if update.edited_message:
+        # skip edits
+        return
+
     msg = MsgWrapper(update["message"])
 
-    if not msg.is_reply or not msg.is_reaction:
+    if not msg.is_reply or not (msg.is_reaction or msg.is_many_reactions):
         save_message_to_db(msg)
     else:
-        # TODO odpowiedz na wiadomosc bota ma aktualizowac parenta
-        toggle_reaction(context.bot, msg.parent, msg.author, msg.text)
+        parent = msg.parent
+
+        # odpowiedz na wiadomosc bota ma aktualizowac parenta
+        with get_conn() as conn:
+            opt_parent = list(
+                conn.execute(
+                    "SELECT parent from message where is_bot_reaction and id=?",
+                    (msg.parent,),
+                ).fetchall()
+            )
+            if opt_parent:
+                parent = opt_parent[0][0]
+
+        if msg.is_many_reactions:
+            toggle_reaction(
+                context.bot,
+                parent,
+                msg.author,
+                set(msg.text),
+                msg.author_id,
+                many=True,
+            )
+        else:
+            toggle_reaction(context.bot, parent, msg.author, msg.text, msg.author_id)
 
         context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
 
@@ -220,7 +299,7 @@ def show_hide_summary(bot, cmd, parent, reaction_post_id):
 
     with get_conn() as conn:
         is_expanded = conn.execute(
-            "select expanded from messages where id=?;", (reaction_post_id,)
+            "select expanded from message where id=?;", (reaction_post_id,)
         ).fetchone()[0]
 
         if (cmd == "show_reactions" and is_expanded) or (
@@ -231,25 +310,12 @@ def show_hide_summary(bot, cmd, parent, reaction_post_id):
             return
 
     if cmd == "show_reactions":
-        with get_conn() as conn:
-            ret = conn.execute(
-                "SELECT type, author from reaction where parent=?;",
-                (parent,),
-            )
-            reactions = defaultdict(list)
-            for r in ret.fetchall():
-                reactions[r[0]].append(r[1])
+        new_text = get_text_for_expanded(parent)
 
-        s = "\n".join(
-            key + ": " + ", ".join(reactioners)
-            for key, reactioners in reactions.items()
-        )
         with get_conn() as conn:
             conn.execute(
                 "UPDATE message SET expanded=TRUE where id=?;", (reaction_post_id,)
             )
-
-        new_text = s
     else:
         with get_conn() as conn:
             conn.execute(
@@ -266,17 +332,26 @@ def show_hide_summary(bot, cmd, parent, reaction_post_id):
 def button_callback_handler(update: Update, context: CallbackContext) -> None:
     callback_data = update["callback_query"]["data"]
     parent_msg = MsgWrapper(update["callback_query"]["message"])
-    author = update["callback_query"]["from_user"]["username"]
+    author = get_name_from_author_obj(update["callback_query"]["from_user"])
+    author_id = update["callback_query"]["from_user"]["id"]
 
-    print("button:", callback_data, author)
+    print("button:", callback_data, author, update)
 
     if callback_data.endswith("reactions"):
         show_hide_summary(
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id
         )
     else:
+        if len(callback_data) > 3:
+            print("invalid reaction callback data")
+            return
+
         toggle_reaction(
-            context.bot, parent=parent_msg.parent, author=author, text=callback_data
+            context.bot,
+            parent=parent_msg.parent,
+            author=author,
+            text=callback_data,
+            author_id=author_id,
         )
 
 

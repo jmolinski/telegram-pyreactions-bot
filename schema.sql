@@ -13,10 +13,11 @@ CREATE TABLE IF NOT EXISTS message
 
 CREATE TABLE IF NOT EXISTS reaction
 (
-    id     INTEGER PRIMARY KEY,
-    parent INT,
-    author TEXT NOT NULL,
-    type   TEXT NOT NULL,
+    id        INTEGER PRIMARY KEY,
+    parent    INT,
+    author_id int  NOT NULL,
+    author    TEXT NOT NULL,
+    type      TEXT NOT NULL,
 
     FOREIGN KEY (parent) REFERENCES message (id)
 );
