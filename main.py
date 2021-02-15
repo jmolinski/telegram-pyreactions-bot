@@ -85,8 +85,13 @@ class MsgWrapper:
     def is_reaction(self) -> bool:
         if self.text is None:
             return False
+        if len(self.text) == 1 or self.text in TEXTUAL_REACTIONS:
+            return True
 
-        return len(self.text) == 1 or self.text in TEXTUAL_REACTIONS
+        return (
+            len(find_emojis_in_str(self.text)) == 1
+            and not demoji.replace(self.text).strip()
+        )
 
     @property
     def is_many_reactions(self):
@@ -268,7 +273,7 @@ def add_single_reaction(parent, author, author_id, text, timestamp):
 def toggle_reaction(bot, parent, author, reactions, author_id):
     for r in reactions:
         add_single_reaction(parent, author, author_id, r, time.time_ns())
-        time.sleep(0.01)  # TODO
+        time.sleep(0.001)
 
     add_delete_or_update_reaction_msg(bot, parent)
 
