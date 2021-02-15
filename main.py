@@ -27,8 +27,8 @@ logger = logging.getLogger(__name__)
 
 EMPTY_MSG = "\xad\xad"
 INFORMATION_EMOJI = "ℹ️"
-
-TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "RiGCz")
+TEXTUAL_NORMALIZATION = {"xd": "xD", "rigcz": "RiGCz"}
+TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "RiGCz", "rak")
 
 
 def unique_list(l):
@@ -104,8 +104,9 @@ class MsgWrapper:
 
     @property
     def text(self) -> str:
-        if self.msg["text"].lower() == "xd":
-            return "xD"
+        lower_text = self.msg["text"].lower()
+        if lower_text in TEXTUAL_NORMALIZATION:
+            return TEXTUAL_NORMALIZATION[lower_text]
 
         return self.msg["text"].strip()
 
@@ -146,7 +147,7 @@ def get_updated_reactions(parent_id):
     with get_conn() as conn:
         ret = conn.execute(
             "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
-            (parent_id,parent_id),
+            (parent_id, parent_id),
         )
         reactions = list(ret.fetchall())
 
@@ -363,7 +364,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id
         )
     else:
-        if len(callback_data) > 3:
+        if len(callback_data) > 8:
             logger.warning("invalid reaction callback data")
             return
 
@@ -371,7 +372,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
             context.bot,
             parent=parent_msg.parent,
             author=author,
-            reactions=unique_list(find_emojis_in_str(callback_data)),
+            reactions=[callback_data],
             author_id=author_id,
         )
 
