@@ -12,6 +12,7 @@ from telegram.ext import (
 from db import get_conn
 from collections import defaultdict
 import emoji
+import demoji
 
 with open(".env") as f:
     log_file = json.loads(f.read())["log_file"]
@@ -88,6 +89,11 @@ class MsgWrapper:
             c for c in self.msg["text"].strip() if c not in VARIANT_SELECTORS
         )
         return all(char_is_emoji(c) for c in text)
+
+    @property
+    def get_reactions_set(self):
+        if not self.is_many_reactions:
+            return {self.text}
 
     @property
     def text(self) -> str:
@@ -256,12 +262,9 @@ def add_single_reaction(parent, author, author_id, text):
         conn.commit()
 
 
-def toggle_reaction(bot, parent, author, text, author_id, many=False):
-    if many:
-        for r in text:
-            add_single_reaction(parent, author, author_id, r)
-    else:
-        add_single_reaction(parent, author, author_id, text)
+def toggle_reaction(bot, parent, author, reactions, author_id):
+    for r in reactions:
+        add_single_reaction(parent, author, author_id, r)
 
     add_delete_or_update_reaction_msg(bot, parent)
 
@@ -290,17 +293,13 @@ def receive_message(update: Update, context: CallbackContext) -> None:
             if opt_parent:
                 parent = opt_parent[0][0]
 
-        if msg.is_many_reactions:
-            toggle_reaction(
-                context.bot,
-                parent,
-                msg.author,
-                set(msg.text),
-                msg.author_id,
-                many=True,
-            )
-        else:
-            toggle_reaction(context.bot, parent, msg.author, msg.text, msg.author_id)
+        toggle_reaction(
+            context.bot,
+            parent,
+            msg.author,
+            msg.get_reactions_set,
+            msg.author_id,
+        )
 
         context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
 
