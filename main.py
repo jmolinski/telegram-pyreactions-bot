@@ -11,8 +11,8 @@ from telegram.ext import (
 )
 from db import get_conn
 from collections import defaultdict
-import emoji
 import demoji
+import time
 
 with open(".env") as f:
     log_file = json.loads(f.read())["log_file"]
@@ -26,20 +26,21 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 EMPTY_MSG = "\xad\xad"
-VARIANT_SELECTORS = {"\uFE0E", "\uFE0F"}
 INFORMATION_EMOJI = "ℹ️"
-TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel")
 
-EMOJI_CODES = {v for k, v in emoji.unicode_codes.EMOJI_ALIAS_UNICODE_ENGLISH.items()}
+TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "RiGCz")
+
+
+def unique_list(l):
+    n = []
+    for item in l:
+        if item not in n:
+            n.append(item)
+    return n
 
 
 def split_into_chunks(l, n):
     return [l[i : i + n] for i in range(0, len(l), n)]
-
-
-def char_is_emoji(character):
-    # print(character, character in codes, 'test')
-    return character in EMOJI_CODES
 
 
 def get_markup(items):
@@ -52,6 +53,10 @@ def get_name_from_author_obj(data):
     username = data["username"]
     first_name = data["first_name"]
     return username or first_name
+
+
+def find_emojis_in_str(s: str):
+    return demoji.findall_list(s, False)
 
 
 class MsgWrapper:
@@ -85,25 +90,22 @@ class MsgWrapper:
 
     @property
     def is_many_reactions(self):
-        text = "".join(
-            c for c in self.msg["text"].strip() if c not in VARIANT_SELECTORS
+        return (
+            len(find_emojis_in_str(self.text)) > 1
+            and not demoji.replace(self.text).strip()
         )
-        return all(char_is_emoji(c) for c in text)
 
     @property
     def get_reactions_set(self):
         if not self.is_many_reactions:
             return {self.text}
 
+        return unique_list(find_emojis_in_str(self.text))
+
     @property
     def text(self) -> str:
         if self.msg["text"].lower() == "xd":
             return "xD"
-
-        if self.is_many_reactions:
-            return "".join(
-                c for c in self.msg["text"].strip() if c not in VARIANT_SELECTORS
-            )
 
         return self.msg["text"].strip()
 
@@ -140,11 +142,11 @@ def save_message_to_db(msg: MsgWrapper, is_bot_reaction=False):
         )
 
 
-def get_updated_reactions(chat_id, parent_id):
+def get_updated_reactions(parent_id):
     with get_conn() as conn:
         ret = conn.execute(
-            "SELECT type, count(*) from reaction where parent=? group by type order by -count(*);",
-            (parent_id,),
+            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
+            (parent_id,parent_id),
         )
         reactions = list(ret.fetchall())
 
@@ -182,7 +184,7 @@ def update_message_markup(bot, chat_id, message_id, parent_id):
     bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=message_id,
-        reply_markup=get_updated_reactions(chat_id, parent_id),
+        reply_markup=get_updated_reactions(parent_id),
     )
 
 
@@ -214,7 +216,7 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
             ).fetchall()
         )
 
-    reactions_markups = get_updated_reactions(chat_id, parent_id)
+    reactions_markups = get_updated_reactions(parent_id)
 
     if len(reactions_markups.inline_keyboard[0]) == 1:
         # removed last reaction
@@ -242,7 +244,7 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
         update_message_markup(bot, chat_id, opt_reactions_msg_id[0][0], parent_id)
 
 
-def add_single_reaction(parent, author, author_id, text):
+def add_single_reaction(parent, author, author_id, text, timestamp):
     logger.info("Hangling add/remove reaction")
     with get_conn() as conn:
         ret = conn.execute(
@@ -256,15 +258,16 @@ def add_single_reaction(parent, author, author_id, text):
             conn.execute("DELETE from reaction where id=?;", (reaction_exists[0][0],))
         else:
             logger.info("adding")
-            sql = "INSERT INTO reaction (parent, author, type, author_id) VALUES (?, ?, ?, ?);"
-            conn.execute(sql, (parent, author, text, author_id))
+            sql = "INSERT INTO reaction (parent, author, type, author_id, timestamp) VALUES (?, ?, ?, ?, ?);"
+            conn.execute(sql, (parent, author, text, author_id, timestamp))
 
         conn.commit()
 
 
 def toggle_reaction(bot, parent, author, reactions, author_id):
     for r in reactions:
-        add_single_reaction(parent, author, author_id, r)
+        add_single_reaction(parent, author, author_id, r, time.time_ns())
+        time.sleep(0.01)  # TODO
 
     add_delete_or_update_reaction_msg(bot, parent)
 
@@ -305,7 +308,7 @@ def receive_message(update: Update, context: CallbackContext) -> None:
 
 
 def echo_photo(update: Update, context: CallbackContext) -> None:
-    logger.info("Picture received")
+    logger.info("Picture or sticker received")
     save_message_to_db(MsgWrapper(update["message"]))
 
 
@@ -368,9 +371,11 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
             context.bot,
             parent=parent_msg.parent,
             author=author,
-            text=callback_data,
+            reactions=unique_list(find_emojis_in_str(callback_data)),
             author_id=author_id,
         )
+
+    context.bot.answer_callback_query(update.callback_query.id)
 
 
 def main() -> None:
@@ -378,14 +383,13 @@ def main() -> None:
         token = json.loads(f.read())["token"]
 
     updater = Updater(token, workers=1)
-
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(
         MessageHandler(Filters.text & ~Filters.command, receive_message)
     )
     dispatcher.add_handler(MessageHandler(Filters.photo, echo_photo))
-
+    dispatcher.add_handler(MessageHandler(Filters.sticker, echo_photo))
     dispatcher.add_handler(
         CallbackQueryHandler(button_callback_handler, pattern="^.*$")
     )
