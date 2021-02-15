@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 EMPTY_MSG = "\xad\xad"
 VARIANT_SELECTORS = {"\uFE0E", "\uFE0F"}
 INFORMATION_EMOJI = "ℹ️"
+TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel")
 
 EMOJI_CODES = {v for k, v in emoji.unicode_codes.EMOJI_ALIAS_UNICODE_ENGLISH.items()}
 
@@ -79,7 +80,7 @@ class MsgWrapper:
         if self.text is None:
             return False
 
-        return len(self.text) == 1 or self.text in ("+1", "-1", "xD")
+        return len(self.text) == 1 or self.text in TEXTUAL_REACTIONS
 
     @property
     def is_many_reactions(self):
