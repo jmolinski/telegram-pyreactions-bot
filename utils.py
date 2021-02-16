@@ -25,3 +25,15 @@ def get_name_from_author_obj(data: Dict[Any, Any]) -> str:
 
 def find_emojis_in_str(s: str) -> List[str]:
     return cast(List[str], demoji.findall_list(s, desc=False))
+
+
+def get_reaction_representation(text: str, count: int, with_count: bool = False) -> str:
+    if text == "-1":
+        return f"-{count}"
+    elif text == "+1":
+        return f"+{count}"
+    else:
+        if with_count:
+            return f"{count} {text}"
+        else:
+            return text

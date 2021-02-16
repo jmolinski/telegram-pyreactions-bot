@@ -2,7 +2,6 @@ CREATE TABLE IF NOT EXISTS message
 (
     id              INTEGER PRIMARY KEY,
     chat_id         INT     NOT NULL,
-    is_reply        BOOLEAN NOT NULL,
     parent          INT,
     is_bot_reaction BOOLEAN NOT NULL,
     expanded        BOOLEAN NOT NULL DEFAULT FALSE,

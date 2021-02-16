@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import time
 
 from collections import defaultdict
@@ -23,7 +25,11 @@ from db import get_conn
 from logger import get_logger
 from message_wrapper import MsgWrapper
 from settings import get_settings
-from utils import get_name_from_author_obj, split_into_chunks
+from utils import (
+    get_name_from_author_obj,
+    get_reaction_representation,
+    split_into_chunks,
+)
 
 SETTINGS = get_settings(".env")
 logger = get_logger(SETTINGS)
@@ -46,13 +52,11 @@ def send_message(
 def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
     logger.info("Savin message to db")
     sql = (
-        "INSERT INTO message (id, chat_id, is_reply, parent, is_bot_reaction) \n"
-        f"VALUES (?, ?, ?, ?, ?);"
+        "INSERT INTO message (id, chat_id, parent, is_bot_reaction) \n"
+        f"VALUES (?, ?, ?, ?);"
     )
     with get_conn() as conn:
-        conn.execute(
-            sql, (msg.msg_id, msg.chat_id, msg.is_reply, msg.parent, is_bot_reaction)
-        )
+        conn.execute(sql, (msg.msg_id, msg.chat_id, msg.parent, is_bot_reaction))
 
 
 def get_show_reaction_stats_button(parent_id: int) -> InlineKeyboardButton:
@@ -87,7 +91,7 @@ def get_updated_reactions(parent_id: int) -> InlineKeyboardMarkup:
 
     markup = [
         InlineKeyboardButton(
-            f"{r[1]} {r[0]}️" if r[1] > 1 else r[0], callback_data=r[0]
+            get_reaction_representation(r[0], r[1], with_count=True), callback_data=r[0]
         )
         for r in reactions
     ]
@@ -113,10 +117,10 @@ def update_message_markup(
 def get_text_for_expanded(parent: int) -> str:
     with get_conn() as conn:
         ret = conn.execute(
-            "select type, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
+            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
             (parent, parent),
         )
-        ordered_reactions = [r[0] for r in ret.fetchall()]
+        ordered_reactions = [(r[0], r[1]) for r in ret.fetchall()]
 
     with get_conn() as conn:
         ret = conn.execute(
@@ -128,8 +132,10 @@ def get_text_for_expanded(parent: int) -> str:
             reactions[r[0]].append(r[1])
 
     return "\n".join(
-        reaction + ": " + ", ".join(reactions[reaction])
-        for reaction in ordered_reactions
+        get_reaction_representation(reaction, count)
+        + ": "
+        + ", ".join(reactions[reaction])
+        for reaction, count in ordered_reactions
     )
 
 
@@ -212,9 +218,9 @@ def receive_message(update: Update, context: CallbackContext) -> None:
         # skip edits
         return
 
-    msg = MsgWrapper(update["message"])
+    msg = MsgWrapper(update.message)
 
-    if not msg.is_reply or not (msg.is_reaction or msg.is_many_reactions):
+    if msg.parent is None or not (msg.is_reaction or msg.is_many_reactions):
         save_message_to_db(msg)
     else:
         assert msg.parent is not None
@@ -244,7 +250,7 @@ def receive_message(update: Update, context: CallbackContext) -> None:
 
 def echo_photo(update: Update, context: CallbackContext) -> None:
     logger.info("Picture or sticker received")
-    save_message_to_db(MsgWrapper(update["message"]))
+    save_message_to_db(MsgWrapper(update.message))
 
 
 def show_hide_summary(bot: Bot, cmd: str, parent: int, reaction_post_id: int) -> None:
