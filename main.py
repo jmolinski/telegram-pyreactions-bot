@@ -1,120 +1,30 @@
-from typing import Optional
-import json
-from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
+import time
+from collections import defaultdict
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
-    Updater,
-    MessageHandler,
-    Filters,
     CallbackContext,
     CallbackQueryHandler,
+    Filters,
+    MessageHandler,
+    Updater,
 )
+
 from db import get_conn
-from collections import defaultdict
-import demoji
-import time
-from settings import get_settings
 from logger import get_logger
+from message_wrapper import MsgWrapper
+from settings import get_settings
+from utils import split_into_chunks, get_name_from_author_obj
+from constants import EMPTY_MSG, INFORMATION_EMOJI
 
 SETTINGS = get_settings(".env")
 logger = get_logger(SETTINGS)
-
-EMPTY_MSG = "\xad\xad"
-INFORMATION_EMOJI = "ℹ️"
-TEXTUAL_NORMALIZATION = {"xd": "xD", "rigcz": "RiGCz"}
-TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "RiGCz", "rak")
-
-
-def unique_list(l):
-    n = []
-    for item in l:
-        if item not in n:
-            n.append(item)
-    return n
-
-
-def split_into_chunks(l, n):
-    return [l[i : i + n] for i in range(0, len(l), n)]
 
 
 def get_markup(items):
     return InlineKeyboardMarkup(
         inline_keyboard=split_into_chunks(items, 4),
     )
-
-
-def get_name_from_author_obj(data):
-    username = data["username"]
-    first_name = data["first_name"]
-    return username or first_name
-
-
-def find_emojis_in_str(s: str):
-    return demoji.findall_list(s, False)
-
-
-class MsgWrapper:
-    def __init__(self, msg):
-        self.msg = msg
-
-    @property
-    def is_reply(self) -> bool:
-        return self.msg["reply_to_message"] is not None
-
-    @property
-    def msg_id(self) -> int:
-        return self.msg["message_id"]
-
-    @property
-    def chat_id(self) -> int:
-        return self.msg["chat"]["id"]
-
-    @property
-    def parent(self) -> Optional[int]:
-        if self.is_reply:
-            return self.msg["reply_to_message"]["message_id"]
-        return None
-
-    @property
-    def is_reaction(self) -> bool:
-        if self.text is None:
-            return False
-        if len(self.text) == 1 or self.text in TEXTUAL_REACTIONS:
-            return True
-
-        return (
-            len(find_emojis_in_str(self.text)) == 1
-            and not demoji.replace(self.text).strip()
-        )
-
-    @property
-    def is_many_reactions(self):
-        return (
-            len(find_emojis_in_str(self.text)) > 1
-            and not demoji.replace(self.text).strip()
-        )
-
-    @property
-    def get_reactions_set(self):
-        if not self.is_many_reactions:
-            return {self.text}
-
-        return unique_list(find_emojis_in_str(self.text))
-
-    @property
-    def text(self) -> str:
-        lower_text = self.msg["text"].lower()
-        if lower_text in TEXTUAL_NORMALIZATION:
-            return TEXTUAL_NORMALIZATION[lower_text]
-
-        return self.msg["text"].strip()
-
-    @property
-    def author(self) -> str:
-        return get_name_from_author_obj(self.msg["from_user"])
-
-    @property
-    def author_id(self) -> str:
-        return self.msg["from_user"]["id"]
 
 
 def send_message(bot, chat_id: int, parent_id: int, markup) -> MsgWrapper:

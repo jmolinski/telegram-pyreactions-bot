@@ -14,7 +14,7 @@ CREATE TABLE IF NOT EXISTS message
 CREATE TABLE IF NOT EXISTS reaction
 (
     id        INTEGER PRIMARY KEY,
-    parent    INT,
+    parent    INT  NOT NULL,
     author_id INT  NOT NULL,
     author    TEXT NOT NULL,
     type      TEXT NOT NULL,
