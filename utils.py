@@ -33,7 +33,7 @@ def get_reaction_representation(text: str, count: int, with_count: bool = False)
     elif text == "+1":
         return f"+{count}"
     else:
-        if with_count:
+        if with_count and count > 1:
             return f"{count} {text}"
         else:
             return text
