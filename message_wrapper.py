@@ -1,6 +1,7 @@
-from typing import Optional
+from typing import List, Optional, cast
 
 import demoji
+
 from telegram import Message as TelegramMessage
 
 from constants import TEXTUAL_NORMALIZATION, TEXTUAL_REACTIONS
@@ -8,6 +9,8 @@ from utils import find_emojis_in_str, get_name_from_author_obj, unique_list
 
 
 class MsgWrapper:
+    msg: TelegramMessage
+
     def __init__(self, msg: TelegramMessage) -> None:
         self.msg = msg
 
@@ -17,16 +20,16 @@ class MsgWrapper:
 
     @property
     def msg_id(self) -> int:
-        return self.msg["message_id"]
+        return cast(int, self.msg.message_id)
 
     @property
     def chat_id(self) -> int:
-        return self.msg["chat"]["id"]
+        return cast(int, self.msg.chat.id)
 
     @property
     def parent(self) -> Optional[int]:
         if self.is_reply:
-            return self.msg["reply_to_message"]["message_id"]
+            return cast(int, self.msg.reply_to_message.message_id)
         return None
 
     @property
@@ -42,31 +45,31 @@ class MsgWrapper:
         )
 
     @property
-    def is_many_reactions(self):
+    def is_many_reactions(self) -> bool:
         return (
             len(find_emojis_in_str(self.text)) > 1
             and not demoji.replace(self.text).strip()
         )
 
     @property
-    def get_reactions_set(self):
+    def get_reactions_list(self) -> List[str]:
         if not self.is_many_reactions:
-            return {self.text}
+            return [self.text]
 
         return unique_list(find_emojis_in_str(self.text))
 
     @property
     def text(self) -> str:
-        lower_text = self.msg["text"].lower()
+        lower_text = self.msg.text_html.lower()
         if lower_text in TEXTUAL_NORMALIZATION:
             return TEXTUAL_NORMALIZATION[lower_text]
 
-        return self.msg["text"].strip()
+        return cast(str, self.msg.text_html.strip())
 
     @property
     def author(self) -> str:
         return get_name_from_author_obj(self.msg["from_user"])
 
     @property
-    def author_id(self) -> str:
-        return self.msg["from_user"]["id"]
+    def author_id(self) -> int:
+        return cast(int, self.msg.from_user.id)

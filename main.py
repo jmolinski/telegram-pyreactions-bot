@@ -1,4 +1,5 @@
 import time
+
 from collections import defaultdict
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
@@ -10,21 +11,15 @@ from telegram.ext import (
     Updater,
 )
 
+from constants import EMPTY_MSG, INFORMATION_EMOJI
 from db import get_conn
 from logger import get_logger
 from message_wrapper import MsgWrapper
 from settings import get_settings
-from utils import split_into_chunks, get_name_from_author_obj
-from constants import EMPTY_MSG, INFORMATION_EMOJI
+from utils import get_name_from_author_obj, split_into_chunks
 
 SETTINGS = get_settings(".env")
 logger = get_logger(SETTINGS)
-
-
-def get_markup(items):
-    return InlineKeyboardMarkup(
-        inline_keyboard=split_into_chunks(items, 4),
-    )
 
 
 def send_message(bot, chat_id: int, parent_id: int, markup) -> MsgWrapper:
@@ -91,7 +86,9 @@ def get_updated_reactions(parent_id):
     if SETTINGS.show_summary_button:
         markup.append(get_show_reaction_stats_button(parent_id))
 
-    return get_markup(markup)
+    return InlineKeyboardMarkup(
+        inline_keyboard=split_into_chunks(markup, 4),
+    )
 
 
 def update_message_markup(bot, chat_id, message_id, parent_id):
@@ -222,7 +219,7 @@ def receive_message(update: Update, context: CallbackContext) -> None:
             context.bot,
             parent,
             msg.author,
-            msg.get_reactions_set,
+            msg.get_reactions_list,
             msg.author_id,
         )
 

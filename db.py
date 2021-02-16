@@ -1,9 +1,11 @@
 import sqlite3
+
 from contextlib import contextmanager
+from typing import Iterator
 
 
 @contextmanager
-def get_conn():
+def get_conn() -> Iterator[sqlite3.Connection]:
     c = sqlite3.connect("test.db")
     yield c
     c.commit()
