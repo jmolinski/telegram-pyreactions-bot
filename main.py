@@ -195,6 +195,13 @@ def update_message_markup(bot, chat_id, message_id, parent_id):
 def get_text_for_expanded(parent):
     with get_conn() as conn:
         ret = conn.execute(
+            "select type, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
+            (parent, parent),
+        )
+        ordered_reactions = [r[0] for r in ret.fetchall()]
+
+    with get_conn() as conn:
+        ret = conn.execute(
             "SELECT type, author from reaction where parent=?;",
             (parent,),
         )
@@ -203,7 +210,8 @@ def get_text_for_expanded(parent):
             reactions[r[0]].append(r[1])
 
     return "\n".join(
-        key + ": " + ", ".join(reactioners) for key, reactioners in reactions.items()
+        reaction + ": " + ", ".join(reactions[reaction])
+        for reaction in ordered_reactions
     )
 
 
@@ -272,7 +280,6 @@ def add_single_reaction(parent, author, author_id, text, timestamp):
 def toggle_reaction(bot, parent, author, reactions, author_id):
     for r in reactions:
         add_single_reaction(parent, author, author_id, r, time.time_ns())
-        time.sleep(0.001)
 
     add_delete_or_update_reaction_msg(bot, parent)
 
@@ -368,10 +375,6 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id
         )
     else:
-        if len(callback_data) > 8:
-            logger.warning("invalid reaction callback data")
-            return
-
         toggle_reaction(
             context.bot,
             parent=parent_msg.parent,
