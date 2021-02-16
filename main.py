@@ -1,5 +1,4 @@
 from typing import Optional
-import logging
 import json
 from telegram import Update, InlineKeyboardMarkup, InlineKeyboardButton
 from telegram.ext import (
@@ -13,17 +12,11 @@ from db import get_conn
 from collections import defaultdict
 import demoji
 import time
+from settings import get_settings
+from logger import get_logger
 
-with open(".env") as f:
-    log_file = json.loads(f.read())["log_file"]
-
-logging.basicConfig(
-    level=logging.DEBUG,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    handlers=[logging.FileHandler("log_file.log"), logging.StreamHandler()],
-)
-
-logger = logging.getLogger(__name__)
+SETTINGS = get_settings(".env")
+logger = get_logger(SETTINGS)
 
 EMPTY_MSG = "\xad\xad"
 INFORMATION_EMOJI = "ℹ️"
@@ -148,21 +141,7 @@ def save_message_to_db(msg: MsgWrapper, is_bot_reaction=False):
         )
 
 
-def get_updated_reactions(parent_id):
-    with get_conn() as conn:
-        ret = conn.execute(
-            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
-            (parent_id, parent_id),
-        )
-        reactions = list(ret.fetchall())
-
-    markup = [
-        InlineKeyboardButton(
-            f"{r[1]} {r[0]}️" if r[1] > 1 else r[0], callback_data=r[0]
-        )
-        for r in reactions
-    ]
-
+def get_show_reaction_stats_button(parent_id):
     with get_conn() as conn:
         reactions_post_id_opt = list(
             conn.execute(
@@ -179,9 +158,28 @@ def get_updated_reactions(parent_id):
             expanded = False
 
     show_hide = "hide" if expanded else "show"
-    markup.append(
-        InlineKeyboardButton(INFORMATION_EMOJI, callback_data=show_hide + "_reactions")
+    return InlineKeyboardButton(
+        INFORMATION_EMOJI, callback_data=show_hide + "_reactions"
     )
+
+
+def get_updated_reactions(parent_id):
+    with get_conn() as conn:
+        ret = conn.execute(
+            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
+            (parent_id, parent_id),
+        )
+        reactions = list(ret.fetchall())
+
+    markup = [
+        InlineKeyboardButton(
+            f"{r[1]} {r[0]}️" if r[1] > 1 else r[0], callback_data=r[0]
+        )
+        for r in reactions
+    ]
+
+    if SETTINGS.show_summary_button:
+        markup.append(get_show_reaction_stats_button(parent_id))
 
     return get_markup(markup)
 
@@ -224,7 +222,8 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
 
     reactions_markups = get_updated_reactions(parent_id)
 
-    if len(reactions_markups.inline_keyboard[0]) == 1:
+    NO_REACTIONS = 1 if SETTINGS.show_summary_button else 0
+    if len(reactions_markups.inline_keyboard[0]) == NO_REACTIONS:
         # removed last reaction
         with get_conn() as conn:
             conn.execute(
@@ -385,10 +384,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
 
 
 def main() -> None:
-    with open(".env") as f:
-        token = json.loads(f.read())["token"]
-
-    updater = Updater(token, workers=1)
+    updater = Updater(SETTINGS.token, workers=1)
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(
