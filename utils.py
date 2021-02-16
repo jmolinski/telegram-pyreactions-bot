@@ -17,10 +17,10 @@ def split_into_chunks(lst: List[T], n: int) -> List[List[T]]:
     return [lst[i : i + n] for i in range(0, len(lst), n)]
 
 
-def get_name_from_author_obj(data: Dict[Any]) -> str:
+def get_name_from_author_obj(data: Dict[Any, Any]) -> str:
     username = data["username"]
     first_name = data["first_name"]
-    return username or first_name
+    return cast(str, username or first_name)
 
 
 def find_emojis_in_str(s: str) -> List[str]:

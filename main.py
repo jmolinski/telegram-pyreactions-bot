@@ -1,8 +1,15 @@
 import time
 
 from collections import defaultdict
+from typing import List
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram import (
+    Bot,
+    CallbackQuery,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+)
 from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
@@ -22,7 +29,9 @@ SETTINGS = get_settings(".env")
 logger = get_logger(SETTINGS)
 
 
-def send_message(bot, chat_id: int, parent_id: int, markup) -> MsgWrapper:
+def send_message(
+    bot: Bot, chat_id: int, parent_id: int, markup: InlineKeyboardMarkup
+) -> MsgWrapper:
     return MsgWrapper(
         bot.send_message(
             chat_id=chat_id,
@@ -34,7 +43,7 @@ def send_message(bot, chat_id: int, parent_id: int, markup) -> MsgWrapper:
     )
 
 
-def save_message_to_db(msg: MsgWrapper, is_bot_reaction=False):
+def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
     logger.info("Savin message to db")
     sql = (
         "INSERT INTO message (id, chat_id, is_reply, parent, is_bot_reaction) \n"
@@ -46,7 +55,7 @@ def save_message_to_db(msg: MsgWrapper, is_bot_reaction=False):
         )
 
 
-def get_show_reaction_stats_button(parent_id):
+def get_show_reaction_stats_button(parent_id: int) -> InlineKeyboardButton:
     with get_conn() as conn:
         reactions_post_id_opt = list(
             conn.execute(
@@ -68,7 +77,7 @@ def get_show_reaction_stats_button(parent_id):
     )
 
 
-def get_updated_reactions(parent_id):
+def get_updated_reactions(parent_id: int) -> InlineKeyboardMarkup:
     with get_conn() as conn:
         ret = conn.execute(
             "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
@@ -91,7 +100,9 @@ def get_updated_reactions(parent_id):
     )
 
 
-def update_message_markup(bot, chat_id, message_id, parent_id):
+def update_message_markup(
+    bot: Bot, chat_id: int, message_id: int, parent_id: int
+) -> None:
     bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=message_id,
@@ -99,7 +110,7 @@ def update_message_markup(bot, chat_id, message_id, parent_id):
     )
 
 
-def get_text_for_expanded(parent):
+def get_text_for_expanded(parent: int) -> str:
     with get_conn() as conn:
         ret = conn.execute(
             "select type, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
@@ -122,7 +133,7 @@ def get_text_for_expanded(parent):
     )
 
 
-def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
+def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int) -> None:
     with get_conn() as conn:
         ret = conn.execute("SELECT chat_id from message where id=?;", (parent_id,))
         chat_id = ret.fetchone()[0]
@@ -164,7 +175,9 @@ def add_delete_or_update_reaction_msg(bot, parent_id) -> None:
         update_message_markup(bot, chat_id, opt_reactions_msg_id[0][0], parent_id)
 
 
-def add_single_reaction(parent, author, author_id, text, timestamp):
+def add_single_reaction(
+    parent: int, author: str, author_id: int, text: str, timestamp: int
+) -> None:
     logger.info("Hangling add/remove reaction")
     with get_conn() as conn:
         ret = conn.execute(
@@ -184,7 +197,9 @@ def add_single_reaction(parent, author, author_id, text, timestamp):
         conn.commit()
 
 
-def toggle_reaction(bot, parent, author, reactions, author_id):
+def toggle_reaction(
+    bot: Bot, parent: int, author: str, reactions: List[str], author_id: int
+) -> None:
     for r in reactions:
         add_single_reaction(parent, author, author_id, r, time.time_ns())
 
@@ -202,7 +217,8 @@ def receive_message(update: Update, context: CallbackContext) -> None:
     if not msg.is_reply or not (msg.is_reaction or msg.is_many_reactions):
         save_message_to_db(msg)
     else:
-        parent = msg.parent
+        assert msg.parent is not None
+        parent: int = msg.parent
 
         # odpowiedz na wiadomosc bota ma aktualizowac parenta
         with get_conn() as conn:
@@ -231,7 +247,7 @@ def echo_photo(update: Update, context: CallbackContext) -> None:
     save_message_to_db(MsgWrapper(update["message"]))
 
 
-def show_hide_summary(bot, cmd, parent, reaction_post_id):
+def show_hide_summary(bot: Bot, cmd: str, parent: int, reaction_post_id: int) -> None:
     with get_conn() as conn:
         chat_id = conn.execute(
             "SELECT chat_id from message where id=?;", (parent,)
@@ -270,18 +286,21 @@ def show_hide_summary(bot, cmd, parent, reaction_post_id):
 
 
 def button_callback_handler(update: Update, context: CallbackContext) -> None:
-    callback_data = update["callback_query"]["data"]
-    parent_msg = MsgWrapper(update["callback_query"]["message"])
+    callback_query: CallbackQuery = update.callback_query
+    callback_data = callback_query.data
+    parent_msg = MsgWrapper(callback_query.message)
     author = get_name_from_author_obj(update["callback_query"]["from_user"])
     author_id = update["callback_query"]["from_user"]["id"]
 
     logger.info(f"button: {callback_data}, {author}\nUpdate: {update}")
 
     if callback_data.endswith("reactions"):
+        assert parent_msg.parent is not None
         show_hide_summary(
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id
         )
     else:
+        assert parent_msg.parent is not None
         toggle_reaction(
             context.bot,
             parent=parent_msg.parent,
