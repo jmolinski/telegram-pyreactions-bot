@@ -20,6 +20,8 @@ from telegram.ext import (
     Updater,
 )
 
+import constants
+
 from constants import EMPTY_MSG, INFORMATION_EMOJI
 from db import get_conn
 from logger import get_logger
@@ -31,7 +33,7 @@ from utils import (
     split_into_chunks,
 )
 
-SETTINGS = get_settings(".env")
+SETTINGS = get_settings(constants.CONFIG_FILENAME)
 logger = get_logger(SETTINGS)
 
 
@@ -244,7 +246,7 @@ def receive_message(update: Update, context: CallbackContext) -> None:
 
     msg = MsgWrapper(update.message)
 
-    if msg.parent is None or not (msg.is_reaction or msg.is_many_reactions):
+    if msg.parent is None or not msg.is_reaction_msg:
         save_message_to_db(msg)
     else:
         assert msg.parent is not None

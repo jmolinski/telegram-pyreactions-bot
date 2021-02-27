@@ -2,6 +2,8 @@ from typing import Any, Dict, List, TypeVar, cast
 
 import demoji
 
+from settings import get_settings
+
 T = TypeVar("T")
 
 
@@ -37,3 +39,7 @@ def get_reaction_representation(text: str, count: int, with_count: bool = False)
             return f"{count} {text}"
         else:
             return text
+
+
+def is_disallowed_reaction(r: str) -> bool:
+    return r not in get_settings().disallowed_reactions

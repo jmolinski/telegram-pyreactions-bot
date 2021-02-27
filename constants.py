@@ -1,3 +1,5 @@
+CONFIG_FILENAME = "conf.json"
+
 EMPTY_MSG = "\xad\xad"
 INFORMATION_EMOJI = "ℹ️"
 TEXTUAL_NORMALIZATION = {"xd": "xD", "rigcz": "RiGCz", "rel": "rel", "rak": "rak"}
