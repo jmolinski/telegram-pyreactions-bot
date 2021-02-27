@@ -42,4 +42,4 @@ def get_reaction_representation(text: str, count: int, with_count: bool = False)
 
 
 def is_disallowed_reaction(r: str) -> bool:
-    return r not in get_settings().disallowed_reactions
+    return r in get_settings().disallowed_reactions
