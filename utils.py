@@ -45,7 +45,19 @@ def get_reaction_representation(text: str, count: int, with_count: bool = False)
             return text
 
 
+def try_int(v: str, default: Optional[int] = None) -> Optional[int]:
+    try:
+        return int(v)
+    except:
+        return default
+
+
 def is_disallowed_reaction(r: str) -> bool:
+    if r[0] in "-+":
+        as_int = try_int(r[1:])
+        if as_int is not None and as_int != 1:
+            return True
+
     return r in get_settings().disallowed_reactions
 
 
