@@ -58,8 +58,8 @@ def send_message(
 def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
     logger.info("Savin message to db")
     sql = (
-        "INSERT INTO message (id, original_id, chat_id, parent, is_bot_reaction) \n"
-        f"VALUES (?, ?, ?, ?, ?);"
+        "INSERT INTO message (id, original_id, author_id, chat_id, parent, is_bot_reaction) \n"
+        f"VALUES (?, ?, ?, ?, ?, ?);"
     )
     with get_conn() as conn:
         conn.execute(
@@ -67,6 +67,7 @@ def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
             (
                 make_msg_id(msg.msg_id, msg.chat_id),
                 msg.msg_id,
+                msg.author_id,
                 msg.chat_id,
                 None if msg.parent is None else make_msg_id(msg.parent, msg.chat_id),
                 is_bot_reaction,
