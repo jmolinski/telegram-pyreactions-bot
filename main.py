@@ -15,6 +15,7 @@ from telegram import (
 from telegram.ext import (
     CallbackContext,
     CallbackQueryHandler,
+    CommandHandler,
     Filters,
     MessageHandler,
     Updater,
@@ -351,6 +352,40 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
     context.bot.answer_callback_query(update.callback_query.id)
 
 
+def show_ranking(update, context):
+    try:
+        days = 7
+        if context.args:
+            days = int(context.args[0])
+            if days < 1:
+                update.message.reply_text("Days argument must be >= 1.")
+                return
+    except (IndexError, ValueError):
+        update.message.reply_text("Usage: /reactionsranking <optional days>")
+        return
+
+    min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10 ** 9)
+    with get_conn() as conn:
+        ret = conn.execute(
+            "SELECT author_id, sum(msg_reactions.cnt) "
+            "from message "
+            "inner join (select parent, count(*) as cnt from reaction where timestamp > ? group by parent) as msg_reactions "
+            "on message.id=msg_reactions.parent "
+            "where chat_id=? "
+            "group by message.author_id "
+            "order by sum(msg_reactions.cnt) desc",
+            (
+                min_timestamp,
+                update.message.chat_id,
+            ),
+        )
+        reactions = list(ret.fetchall())
+
+    print("\n\n\n", reactions, "\n\n\n")
+
+    update.message.reply_text("ranking")
+
+
 def main() -> None:
     updater = Updater(SETTINGS.token, workers=1)
     dispatcher = updater.dispatcher
@@ -362,6 +397,10 @@ def main() -> None:
     dispatcher.add_handler(MessageHandler(Filters.sticker, echo_photo))
     dispatcher.add_handler(
         CallbackQueryHandler(button_callback_handler, pattern="^.*$")
+    )
+
+    dispatcher.add_handler(
+        CommandHandler("reactionsranking", show_ranking, run_async=False)
     )
 
     updater.start_polling()
