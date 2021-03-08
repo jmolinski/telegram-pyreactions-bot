@@ -3,6 +3,7 @@ CREATE TABLE IF NOT EXISTS message
     id              TEXT PRIMARY KEY,
     original_id     INT     NOT NULL,
     author_id       INT     NOT NULL,
+    author          TEXT    NOT NULL,
     chat_id         INT     NOT NULL,
     parent          TEXT,
     is_bot_reaction BOOLEAN NOT NULL,

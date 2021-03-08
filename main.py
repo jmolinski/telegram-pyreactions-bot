@@ -59,8 +59,8 @@ def send_message(
 def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
     logger.info("Savin message to db")
     sql = (
-        "INSERT INTO message (id, original_id, author_id, chat_id, parent, is_bot_reaction) \n"
-        f"VALUES (?, ?, ?, ?, ?, ?);"
+        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction) \n"
+        f"VALUES (?, ?, ?, ?, ?, ?, ?);"
     )
     with get_conn() as conn:
         conn.execute(
@@ -69,6 +69,7 @@ def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
                 make_msg_id(msg.msg_id, msg.chat_id),
                 msg.msg_id,
                 msg.author_id,
+                msg.author,
                 msg.chat_id,
                 None if msg.parent is None else make_msg_id(msg.parent, msg.chat_id),
                 is_bot_reaction,
@@ -352,7 +353,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
     context.bot.answer_callback_query(update.callback_query.id)
 
 
-def show_ranking(update, context):
+def show_ranking(update: Update, context: CallbackContext) -> None:
     try:
         days = 7
         if context.args:
@@ -361,29 +362,64 @@ def show_ranking(update, context):
                 update.message.reply_text("Days argument must be >= 1.")
                 return
     except (IndexError, ValueError):
-        update.message.reply_text("Usage: /reactionsranking <optional days>")
+        update.message.reply_text("Usage: /ranking <optional days>")
         return
 
     min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10 ** 9)
     with get_conn() as conn:
-        ret = conn.execute(
-            "SELECT author_id, sum(msg_reactions.cnt) "
-            "from message "
-            "inner join (select parent, count(*) as cnt from reaction where timestamp > ? group by parent) as msg_reactions "
-            "on message.id=msg_reactions.parent "
-            "where chat_id=? "
-            "group by message.author_id "
-            "order by sum(msg_reactions.cnt) desc",
-            (
-                min_timestamp,
-                update.message.chat_id,
-            ),
+        reactions_received = list(
+            conn.execute(
+                "SELECT author_id, sum(msg_reactions.cnt) "
+                "from message "
+                "inner join (select parent, count(*) as cnt from reaction where timestamp > ? group by parent) as msg_reactions "
+                "on message.id=msg_reactions.parent "
+                "where chat_id=? "
+                "group by message.author_id "
+                "order by sum(msg_reactions.cnt) desc",
+                (
+                    min_timestamp,
+                    update.message.chat_id,
+                ),
+            ).fetchall()
         )
-        reactions = list(ret.fetchall())
 
-    print("\n\n\n", reactions, "\n\n\n")
+        reactions_given = list(
+            conn.execute(
+                "SELECT author_id, count(*) "
+                "from reaction "
+                "inner join (select id, chat_id from message) as reaction_msg "
+                "on reaction_msg.id=reaction.parent "
+                "where timestamp > ? and reaction_msg.chat_id = ?"
+                "group by reaction.author_id "
+                "order by count(*) desc",
+                (
+                    min_timestamp,
+                    update.message.chat_id,
+                ),
+            ).fetchall()
+        )
 
-    update.message.reply_text("ranking")
+    text = f"Reactions received in the last {days} days\n"
+    with get_conn() as conn:
+        for i, (user_id, cnt) in enumerate(reactions_received, start=1):
+            username = conn.execute(
+                "SELECT author from message where author_id=? LIMIT 1",
+                (user_id,),
+            ).fetchone()[0]
+
+            text += f"{i}. {username}: {cnt}\n"
+
+    text += f"\nReactions given in the last {days} days\n"
+    with get_conn() as conn:
+        for i, (user_id, cnt) in enumerate(reactions_given, start=1):
+            username = conn.execute(
+                "SELECT author from reaction where author_id=? LIMIT 1",
+                (user_id,),
+            ).fetchone()[0]
+
+            text += f"{i}. {username}: {cnt}\n"
+
+    update.message.reply_text(text)
 
 
 def main() -> None:
@@ -399,9 +435,7 @@ def main() -> None:
         CallbackQueryHandler(button_callback_handler, pattern="^.*$")
     )
 
-    dispatcher.add_handler(
-        CommandHandler("reactionsranking", show_ranking, run_async=False)
-    )
+    dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=False))
 
     updater.start_polling()
     updater.idle()
