@@ -11,6 +11,7 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     Update,
+    ParseMode,
 )
 from telegram.ext import (
     CallbackContext,
@@ -19,9 +20,12 @@ from telegram.ext import (
     Filters,
     MessageHandler,
     Updater,
+    CommandHandler,
 )
 
 import constants
+
+import re
 
 from constants import EMPTY_MSG, INFORMATION_EMOJI
 from db import get_conn
@@ -422,6 +426,75 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(text)
 
 
+def get_help_features():
+    help_txt = ""
+    disallowed_reactions = ", ".join(
+        map(lambda reaction: f"`{reaction}`", SETTINGS.disallowed_reactions)
+    )
+    features = [
+        (
+            "Reply to a message, or to the existing bot reply to this message with only emojis to react.",
+            True,
+        ),
+        (
+            "Reply with a single character to react with it.",
+            True,
+        ),
+        (
+            "To add a reaction with a custom text reply in the format of:\n`!react custom text`",
+            SETTINGS.custom_text_reaction_allowed,
+        ),
+        (
+            f"Banned reactions are: {disallowed_reactions}, `+n`, `-n` \(where `n != 1`\).",
+            SETTINGS.disallowed_reactions,
+        ),
+        ("Reply with `+1` to upvote or `-1` to downvote.", True),
+        ("Click on an already added reaction to also react with it.", True),
+        (
+            "If you have already reacted you can click on this reaction to remove it.",
+            True,
+        ),
+        (
+            f"Click on the last reaction *\(*{constants.INFORMATION_EMOJI}*\)* to toggle reactions summary.",
+            SETTINGS.show_summary_button,
+        ),
+    ]
+
+    count = 1
+    for feature, show in features:
+        if show:
+            help_txt += f"{count}. {feature}\n"
+            count += 1
+
+    return help_txt
+
+
+def _escape_markdown_v2(txt):
+    return re.sub("(?=[~>#+-=|{}.!])", "\\\\", txt)
+
+
+def _get_help_text():
+    features_txt = get_help_features()
+    res = f"""*Features:*
+{features_txt}
+*Setup:*
+1. Add the bot to the conversation.
+2. Give it admin permissions. You can limit it's permissions to only delete messages.
+
+*For further support:*
+[Github Repository](https://github.com/jmolinski/telegram-pyreactions-bot/)
+"""
+    return _escape_markdown_v2(res)
+
+
+def help_handler(update: Update, context: CallbackContext) -> None:
+    help_text = _get_help_text()
+
+    update.message.reply_text(
+        help_text, parse_mode=ParseMode.MARKDOWN_V2, disable_web_page_preview=True
+    )
+
+
 def main() -> None:
     updater = Updater(SETTINGS.token, workers=1)
     dispatcher = updater.dispatcher
@@ -436,6 +509,7 @@ def main() -> None:
     )
 
     dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=False))
+    dispatcher.add_handler(CommandHandler("help", help_handler))
 
     updater.start_polling()
     updater.idle()
