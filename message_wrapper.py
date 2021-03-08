@@ -85,11 +85,12 @@ class MsgWrapper:
 
     @property
     def text(self) -> str:
-        lower_text = self.msg.text_html.lower()
+        lower_text = self.msg.text.lower()
+
         if lower_text in TEXTUAL_NORMALIZATION:
             return TEXTUAL_NORMALIZATION[lower_text]
 
-        return cast(str, self.msg.text_html.strip())
+        return cast(str, self.msg.text.strip())
 
     @property
     def author(self) -> str:
