@@ -72,3 +72,7 @@ def extract_custom_reaction(t: str) -> Optional[str]:
         return None
 
     return reaction
+
+
+def _escape_markdown_v2(txt: str) -> str:
+    return re.sub("(?=[~>#+-=|{}.!])", "\\\\", txt)

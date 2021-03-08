@@ -10,8 +10,8 @@ from telegram import (
     CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
-    Update,
     ParseMode,
+    Update,
 )
 from telegram.ext import (
     CallbackContext,
@@ -20,12 +20,9 @@ from telegram.ext import (
     Filters,
     MessageHandler,
     Updater,
-    CommandHandler,
 )
 
 import constants
-
-import re
 
 from constants import EMPTY_MSG, INFORMATION_EMOJI
 from db import get_conn
@@ -33,6 +30,7 @@ from logger import get_logger
 from message_wrapper import MsgWrapper
 from settings import get_settings
 from utils import (
+    _escape_markdown_v2,
     get_name_from_author_obj,
     get_reaction_representation,
     split_into_chunks,
@@ -426,10 +424,9 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(text)
 
 
-def get_help_features():
-    help_txt = ""
+def get_help_features() -> str:
     disallowed_reactions = ", ".join(
-        map(lambda reaction: f"`{reaction}`", SETTINGS.disallowed_reactions)
+        f"`{reaction}`" for reaction in SETTINGS.disallowed_reactions
     )
     features = [
         (
@@ -445,7 +442,7 @@ def get_help_features():
             SETTINGS.custom_text_reaction_allowed,
         ),
         (
-            f"Banned reactions are: {disallowed_reactions}, `+n`, `-n` \(where `n != 1`\).",
+            fr"Banned reactions are: {disallowed_reactions}, `+n`, `-n` \(where `n != 1`\).",
             SETTINGS.disallowed_reactions,
         ),
         ("Reply with `+1` to upvote or `-1` to downvote.", True),
@@ -455,28 +452,22 @@ def get_help_features():
             True,
         ),
         (
-            f"Click on the last reaction *\(*{constants.INFORMATION_EMOJI}*\)* to toggle reactions summary.",
+            fr"Click on the last reaction *\(*{constants.INFORMATION_EMOJI}*\)* to toggle reactions summary.",
             SETTINGS.show_summary_button,
         ),
     ]
 
-    count = 1
-    for feature, show in features:
-        if show:
-            help_txt += f"{count}. {feature}\n"
-            count += 1
-
-    return help_txt
+    enabled_features = (f for f, enabled in features if enabled)
+    return "\n".join(
+        f"{i}. {feature}" for i, feature in enumerate(enabled_features, start=1)
+    )
 
 
-def _escape_markdown_v2(txt):
-    return re.sub("(?=[~>#+-=|{}.!])", "\\\\", txt)
-
-
-def _get_help_text():
+def _get_help_text() -> str:
     features_txt = get_help_features()
     res = f"""*Features:*
 {features_txt}
+
 *Setup:*
 1. Add the bot to the conversation.
 2. Give it admin permissions. You can limit it's permissions to only delete messages.
@@ -509,7 +500,7 @@ def main() -> None:
     )
 
     dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=False))
-    dispatcher.add_handler(CommandHandler("help", help_handler))
+    dispatcher.add_handler(CommandHandler("help", help_handler, run_async=True))
 
     updater.start_polling()
     updater.idle()
