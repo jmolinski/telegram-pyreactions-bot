@@ -7,6 +7,7 @@ CREATE TABLE IF NOT EXISTS message
     chat_id         INT     NOT NULL,
     parent          TEXT,
     is_bot_reaction BOOLEAN NOT NULL,
+    is_ranking      BOOLEAN NOT NULL,
     expanded        BOOLEAN NOT NULL DEFAULT FALSE,
 
     FOREIGN KEY (parent) REFERENCES message (id)

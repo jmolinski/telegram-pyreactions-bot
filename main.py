@@ -3,7 +3,7 @@ from __future__ import annotations
 import time
 
 from collections import defaultdict
-from typing import List
+from typing import List, Optional
 
 from telegram import (
     Bot,
@@ -45,24 +45,43 @@ def make_msg_id(msg_id: int, chat_id: int) -> str:
 
 
 def send_message(
-    bot: Bot, chat_id: int, parent_id: int, markup: InlineKeyboardMarkup
+    bot: Bot,
+    chat_id: int,
+    parent_id: int,
+    markup: Optional[InlineKeyboardMarkup],
+    text: Optional[str] = None,
 ) -> MsgWrapper:
-    return MsgWrapper(
-        bot.send_message(
-            chat_id=chat_id,
-            text=EMPTY_MSG,
-            reply_markup=markup,
-            reply_to_message_id=parent_id,
-            parse_mode="HTML",
+    if text is None:
+        text = EMPTY_MSG
+
+    if markup:
+        return MsgWrapper(
+            bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                reply_markup=markup,
+                reply_to_message_id=parent_id,
+                parse_mode="HTML",
+            )
         )
-    )
+    else:
+        return MsgWrapper(
+            bot.send_message(
+                chat_id=chat_id,
+                text=text,
+                reply_to_message_id=parent_id,
+                parse_mode="HTML",
+            )
+        )
 
 
-def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
+def save_message_to_db(
+    msg: MsgWrapper, is_bot_reaction: bool = False, is_ranking: bool = False
+) -> None:
     logger.info("Savin message to db")
     sql = (
-        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction) \n"
-        f"VALUES (?, ?, ?, ?, ?, ?, ?);"
+        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction, is_ranking) \n"
+        f"VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
     )
     with get_conn() as conn:
         conn.execute(
@@ -75,6 +94,7 @@ def save_message_to_db(msg: MsgWrapper, is_bot_reaction: bool = False) -> None:
                 msg.chat_id,
                 None if msg.parent is None else make_msg_id(msg.parent, msg.chat_id),
                 is_bot_reaction,
+                is_ranking,
             ),
         )
 
@@ -143,7 +163,8 @@ def get_text_for_expanded(parent: int, chat_id: int) -> str:
 
     with get_conn() as conn:
         ret = conn.execute(
-            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
+            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time "
+            "from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
             (msg_id, msg_id),
         )
         ordered_reactions = [(r[0], r[1]) for r in ret.fetchall()]
@@ -341,6 +362,13 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
         show_hide_summary(
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id, chat_id
         )
+    elif callback_data.endswith("__delete"):
+        assert parent_msg.parent is not None
+        try:
+            msg_id = int(callback_data.split("__")[0])
+            context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+        except:
+            pass
     else:
         assert parent_msg.parent is not None
         toggle_reaction(
@@ -421,7 +449,19 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
 
             text += f"{i}. {username}: {cnt}\n"
 
-    update.message.reply_text(text)
+    parent_msg = MsgWrapper(update.message)
+    ranking_msg = send_message(
+        context.bot, parent_msg.chat_id, parent_msg.msg_id, None, text=text
+    )
+    save_message_to_db(ranking_msg, is_bot_reaction=False, is_ranking=True)
+    delete_button = InlineKeyboardButton(
+        "delete ranking", callback_data=f"{ranking_msg.msg_id}__delete"
+    )
+    context.bot.edit_message_reply_markup(
+        chat_id=ranking_msg.chat_id,
+        message_id=ranking_msg.msg_id,
+        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[delete_button]]),
+    )
 
 
 def get_help_features() -> str:
