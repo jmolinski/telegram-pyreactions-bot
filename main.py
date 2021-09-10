@@ -510,7 +510,7 @@ def _get_help_text() -> str:
 
 *Setup:*
 1. Add the bot to the conversation.
-2. Give it admin permissions. You can limit it's permissions to only delete messages.
+2. Give it admin permissions. You can limit its permissions to only delete messages.
 
 *For further support:*
 [Github Repository](https://github.com/jmolinski/telegram-pyreactions-bot/)
