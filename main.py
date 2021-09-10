@@ -478,7 +478,7 @@ def get_help_features() -> str:
             True,
         ),
         (
-            "To add a reaction with a custom text reply in the format of:\n`!react custom text`",
+            "To add a reaction with a custom text reply in the format of: `!react <text>`, or `!r <text>`",
             SETTINGS.custom_text_reaction_allowed,
         ),
         (

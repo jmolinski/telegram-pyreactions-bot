@@ -8,7 +8,7 @@ from settings import get_settings
 
 T = TypeVar("T")
 
-CUSTOM_REACTION_PATTERN = re.compile("!react (.*)")
+CUSTOM_REACTION_PATTERN = re.compile("!(r(eact)?) (.*)")
 
 
 def unique_list(lst: List[T]) -> List[T]:
@@ -67,7 +67,7 @@ def extract_custom_reaction(t: str) -> Optional[str]:
     if match is None:
         return None
 
-    reaction = match.group(1).strip()
+    reaction = match.group(3).strip()
     if not reaction or is_disallowed_reaction(reaction):
         return None
 
