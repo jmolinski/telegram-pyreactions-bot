@@ -11,5 +11,6 @@ TEXTUAL_NORMALIZATION = {
     "rak": "rak",
     "<3": "❤️",
     "lenny": _LENNYFACE,
+    "nierel": "nierel",
 }
 TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "RiGCz", "rak", "lenny", _LENNYFACE)
