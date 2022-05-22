@@ -464,6 +464,46 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
     )
 
 
+def show_best_messages(update: Update, context: CallbackContext) -> None:
+    days = 7
+    n = 10
+    try:
+        if context.args:
+            days = int(context.args[0])
+            if days < 1:
+                update.message.reply_text("Days argument must be >= 1.")
+                return
+        if len(context.args) > 1:
+            n = min(int(context.args[1]), 30)
+    except ValueError:
+        update.message.reply_text("Usage: /most_reacted <optional days> <optional number of messages> <optional user>")
+        return
+
+    min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10 ** 9)
+
+    query_parts = [
+        "select message.author_id, message.original_id, count(*) as c from message "
+        "inner join reaction "
+        "on message.id = reaction.parent "
+        "where reaction.timestamp > ? "
+        "and message.chat_id = ? ",
+        "group by message.id order by c limit ?",
+    ]
+    query_arguments = [min_timestamp, update.message.chat_id, n]
+
+    if len(context.args) > 2:
+        user = context.args[2]
+        query_parts.insert(1, "and message.author = ?")
+        query_arguments.insert(2, user)
+
+    with get_conn() as conn:
+        reactions_received = conn.execute("".join(query_parts), query_arguments).fetchall()
+
+    parent_msg = MsgWrapper(update.message)
+    for i, (user_id, message_id, cnt) in enumerate(reactions_received, start=1):
+        send_message(context.bot, parent_msg.chat_id, message_id, None, text=f"{i}. {cnt}")
+
+
 def get_help_features() -> str:
     disallowed_reactions = ", ".join(
         f"`{reaction}`" for reaction in SETTINGS.disallowed_reactions
@@ -540,6 +580,7 @@ def main() -> None:
     )
 
     dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=False))
+    dispatcher.add_handler(CommandHandler("most_reacted", show_best_messages, run_async=False))
     dispatcher.add_handler(CommandHandler("help", help_handler, run_async=True))
 
     updater.start_polling()
