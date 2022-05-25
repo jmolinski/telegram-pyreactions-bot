@@ -395,7 +395,7 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
         update.message.reply_text("Usage: /ranking <optional days>")
         return
 
-    min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10 ** 9)
+    min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10**9)
     with get_conn() as conn:
         reactions_received = list(
             conn.execute(
@@ -476,10 +476,12 @@ def show_best_messages(update: Update, context: CallbackContext) -> None:
         if len(context.args) > 1:
             n = min(int(context.args[1]), 30)
     except ValueError:
-        update.message.reply_text("Usage: /most_reacted <optional days> <optional number of messages> <optional user>")
+        update.message.reply_text(
+            "Usage: /most_reacted <optional days> <optional number of messages> <optional user>"
+        )
         return
 
-    min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10 ** 9)
+    min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10**9)
 
     query_parts = [
         "select message.author_id, message.original_id, count(*) as c from message "
@@ -498,11 +500,15 @@ def show_best_messages(update: Update, context: CallbackContext) -> None:
         query_arguments.insert(2, user)
 
     with get_conn() as conn:
-        reactions_received = conn.execute("".join(query_parts), query_arguments).fetchall()
+        reactions_received = conn.execute(
+            "".join(query_parts), query_arguments
+        ).fetchall()
 
     parent_msg = MsgWrapper(update.message)
     for i, (user_id, message_id, cnt) in enumerate(reactions_received, start=1):
-        send_message(context.bot, parent_msg.chat_id, message_id, None, text=f"{i}. {cnt}")
+        send_message(
+            context.bot, parent_msg.chat_id, message_id, None, text=f"{i}. {cnt}"
+        )
 
 
 def get_help_features() -> str:
@@ -523,7 +529,7 @@ def get_help_features() -> str:
             SETTINGS.custom_text_reaction_allowed,
         ),
         (
-            fr"Banned reactions are: {disallowed_reactions}, `+n`, `-n` \(where `n != 1`\).",
+            rf"Banned reactions are: {disallowed_reactions}, `+n`, `-n` \(where `n != 1`\).",
             SETTINGS.disallowed_reactions,
         ),
         ("Reply with `+1` to upvote or `-1` to downvote.", True),
@@ -533,7 +539,7 @@ def get_help_features() -> str:
             True,
         ),
         (
-            fr"Click on the last reaction *\(*{constants.INFORMATION_EMOJI}*\)* to toggle reactions summary.",
+            rf"Click on the last reaction *\(*{constants.INFORMATION_EMOJI}*\)* to toggle reactions summary.",
             SETTINGS.show_summary_button,
         ),
     ]
@@ -581,7 +587,9 @@ def main() -> None:
     )
 
     dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=False))
-    dispatcher.add_handler(CommandHandler("most_reacted", show_best_messages, run_async=False))
+    dispatcher.add_handler(
+        CommandHandler("most_reacted", show_best_messages, run_async=False)
+    )
     dispatcher.add_handler(CommandHandler("help", help_handler, run_async=True))
 
     updater.start_polling()

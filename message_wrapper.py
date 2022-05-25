@@ -4,7 +4,11 @@ import demoji
 
 from telegram import Message as TelegramMessage
 
-from constants import TEXTUAL_NORMALIZATION, TEXTUAL_REACTIONS
+from constants import (
+    TEXTUAL_NORMALIZATION,
+    TEXTUAL_REACTIONS,
+    REACTIONS_IN_SINGLE_MSG_LIMIT,
+)
 from settings import get_settings
 from utils import (
     extract_custom_reaction,
@@ -63,7 +67,10 @@ class MsgWrapper:
         if any(is_disallowed_reaction(r) for r in found_reactions):
             return False
 
-        return len(found_reactions) > 1 and not demoji.replace(self.text).strip()
+        return (
+            REACTIONS_IN_SINGLE_MSG_LIMIT >= len(found_reactions) > 1
+            and not demoji.replace(self.text).strip()
+        )
 
     @property
     def is_custom_reaction(self) -> bool:

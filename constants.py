@@ -16,3 +16,5 @@ TEXTUAL_NORMALIZATION = {
     "based:": "baza",
 }
 TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "nierel", "RiGCz", "rak", "lenny", _LENNYFACE, "baza")
+
+REACTIONS_IN_SINGLE_MSG_LIMIT = 3
