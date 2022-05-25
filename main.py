@@ -487,7 +487,8 @@ def show_best_messages(update: Update, context: CallbackContext) -> None:
         "on message.id = reaction.parent "
         "where reaction.timestamp > ? "
         "and message.chat_id = ? ",
-        "group by message.id order by c limit ?",
+        "group by message.id order by c desc",
+        "limit ?",
     ]
     query_arguments = [min_timestamp, update.message.chat_id, n]
 
