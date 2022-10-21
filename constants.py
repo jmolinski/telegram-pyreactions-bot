@@ -1,4 +1,5 @@
 CONFIG_FILENAME = "conf.json"
+DB_FILENAME = "test.db"
 
 EMPTY_MSG = "\xad\xad"
 INFORMATION_EMOJI = "ℹ️"
@@ -15,6 +16,17 @@ TEXTUAL_NORMALIZATION = {
     "baza:": "baza",
     "based:": "baza",
 }
-TEXTUAL_REACTIONS = ("+1", "-1", "xD", "rel", "nierel", "RiGCz", "rak", "lenny", _LENNYFACE, "baza")
+TEXTUAL_REACTIONS = (
+    "+1",
+    "-1",
+    "xD",
+    "rel",
+    "nierel",
+    "RiGCz",
+    "rak",
+    "lenny",
+    _LENNYFACE,
+    "baza",
+)
 
 REACTIONS_IN_SINGLE_MSG_LIMIT = 3
