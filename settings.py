@@ -14,6 +14,9 @@ class Settings:
     token: str
     show_summary_button: bool
     disallowed_reactions: Set[str]
+    custom_text_reaction_allowed: bool
+    anon_messages_allowed: bool
+    anon_msg_prefix: str
 
     def __init__(self, env_file_name: str) -> None:
         with open(env_file_name) as f:
@@ -29,6 +32,8 @@ class Settings:
         self.custom_text_reaction_allowed = content.get(
             "custom_text_reaction_allowed", False
         )
+        self.anon_messages_allowed = content.get("anon_messages_allowed", False)
+        self.anon_msg_prefix = content.get("anon_msg_prefix", "")
 
 
 def get_settings(env_file_name: Optional[str] = None) -> Settings:

@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS message
     parent          TEXT,
     is_bot_reaction BOOLEAN NOT NULL,
     is_ranking      BOOLEAN NOT NULL,
+    is_anon         BOOLEAN NOT NULL,
     expanded        BOOLEAN NOT NULL DEFAULT FALSE,
 
     FOREIGN KEY (parent) REFERENCES message (id)

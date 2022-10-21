@@ -9,6 +9,7 @@ from settings import get_settings
 T = TypeVar("T")
 
 CUSTOM_REACTION_PATTERN = re.compile("!(r(eact)?) (.*)")
+ANON_MSG_PATTERN = re.compile("!(a(non)?) (.*)")
 
 
 def unique_list(lst: List[T]) -> List[T]:
@@ -72,6 +73,16 @@ def extract_custom_reaction(t: str) -> Optional[str]:
         return None
 
     return reaction
+
+
+def extract_anon_message_text(t: str) -> Optional[str]:
+    t = t.strip()
+    match = re.match(ANON_MSG_PATTERN, t)
+    if match is None:
+        return None
+
+    reaction = match.group(3).strip()
+    return reaction if reaction else None
 
 
 def _escape_markdown_v2(txt: str) -> str:

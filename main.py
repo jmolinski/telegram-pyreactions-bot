@@ -34,6 +34,7 @@ from utils import (
     get_name_from_author_obj,
     get_reaction_representation,
     split_into_chunks,
+    extract_anon_message_text,
 )
 
 SETTINGS = get_settings(constants.CONFIG_FILENAME)
@@ -47,41 +48,37 @@ def make_msg_id(msg_id: int, chat_id: int) -> str:
 def send_message(
     bot: Bot,
     chat_id: int,
-    parent_id: int,
-    markup: Optional[InlineKeyboardMarkup],
+    parent_id: Optional[int] = None,
+    markup: Optional[InlineKeyboardMarkup] = None,
     text: Optional[str] = None,
 ) -> MsgWrapper:
     if text is None:
         text = EMPTY_MSG
 
+    base_args = {
+        "chat_id": chat_id,
+        "text": text,
+        "parse_mode": "HTML",
+    }
+
+    if parent_id:
+        base_args["reply_to_message_id"] = parent_id
     if markup:
-        return MsgWrapper(
-            bot.send_message(
-                chat_id=chat_id,
-                text=text,
-                reply_markup=markup,
-                reply_to_message_id=parent_id,
-                parse_mode="HTML",
-            )
-        )
-    else:
-        return MsgWrapper(
-            bot.send_message(
-                chat_id=chat_id,
-                text=text,
-                reply_to_message_id=parent_id,
-                parse_mode="HTML",
-            )
-        )
+        base_args["reply_markup"] = markup
+
+    return MsgWrapper(bot.send_message(**base_args))
 
 
 def save_message_to_db(
-    msg: MsgWrapper, is_bot_reaction: bool = False, is_ranking: bool = False
+    msg: MsgWrapper,
+    is_bot_reaction: bool = False,
+    is_ranking: bool = False,
+    is_anon: bool = False,
 ) -> None:
     logger.info("Savin message to db")
     sql = (
-        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction, is_ranking) \n"
-        f"VALUES (?, ?, ?, ?, ?, ?, ?, ?);"
+        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction, is_ranking, is_anon) \n"
+        f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"
     )
     with get_conn() as conn:
         conn.execute(
@@ -95,6 +92,7 @@ def save_message_to_db(
                 None if msg.parent is None else make_msg_id(msg.parent, msg.chat_id),
                 is_bot_reaction,
                 is_ranking,
+                is_anon,
             ),
         )
 
@@ -210,7 +208,9 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
         bot.delete_message(chat_id=chat_id, message_id=opt_reactions_msg_id[0][0])
     elif not opt_reactions_msg_id:
         # adding new reactions msg
-        new_msg = send_message(bot, chat_id, parent_id, reactions_markups)
+        new_msg = send_message(
+            bot, chat_id, parent_id=parent_id, markup=reactions_markups
+        )
         save_message_to_db(new_msg, is_bot_reaction=True)
     else:
         # updating existing reactions post
@@ -264,13 +264,31 @@ def toggle_reaction(
     add_delete_or_update_reaction_msg(bot, parent, chat_id)
 
 
+def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
+    # first remove the original message
+    context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
+    # then send a message with the same content
+    extracted_anon_text = extract_anon_message_text(msg.text)
+    assert extracted_anon_text is not None
+    anonimized_text = get_settings().anon_msg_prefix + extracted_anon_text
+    new_msg = send_message(
+        context.bot, msg.chat_id, parent_id=msg.parent, text=anonimized_text
+    )
+    save_message_to_db(new_msg, is_anon=True)
+
+
 def receive_message(update: Update, context: CallbackContext) -> None:
     logger.info("Message received")
     if update.edited_message:
         # skip edits
         return
 
+    assert update.message is not None
     msg = MsgWrapper(update.message)
+
+    if msg.is_anon_message:
+        repost_anon_message(context, msg)
+        return
 
     if msg.parent is None or not msg.is_reaction_msg:
         save_message_to_db(msg)
@@ -306,6 +324,7 @@ def receive_message(update: Update, context: CallbackContext) -> None:
 
 def echo_photo(update: Update, context: CallbackContext) -> None:
     logger.info("Picture or sticker received")
+    assert update.message is not None
     save_message_to_db(MsgWrapper(update.message))
 
 
@@ -348,8 +367,11 @@ def show_hide_summary(
 
 
 def button_callback_handler(update: Update, context: CallbackContext) -> None:
-    callback_query: CallbackQuery = update.callback_query
+    assert update.callback_query is not None
+    callback_query = update.callback_query
     callback_data = callback_query.data
+    assert isinstance(callback_data, str)
+    assert callback_query.message is not None
     parent_msg = MsgWrapper(callback_query.message)
     author = get_name_from_author_obj(update["callback_query"]["from_user"])
     author_id = update["callback_query"]["from_user"]["id"]
@@ -384,6 +406,8 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
 
 
 def show_ranking(update: Update, context: CallbackContext) -> None:
+    assert update.message is not None
+
     try:
         days = 7
         if context.args:
@@ -465,6 +489,9 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
 
 
 def show_best_messages(update: Update, context: CallbackContext) -> None:
+    assert update.message is not None
+    assert context.args is not None
+
     days = 7
     n = 10
     try:
@@ -568,6 +595,7 @@ def _get_help_text() -> str:
 def help_handler(update: Update, context: CallbackContext) -> None:
     help_text = _get_help_text()
 
+    assert update.message is not None
     update.message.reply_text(
         help_text, parse_mode=ParseMode.MARKDOWN_V2, disable_web_page_preview=True
     )

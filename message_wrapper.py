@@ -12,6 +12,7 @@ from constants import (
 from settings import get_settings
 from utils import (
     extract_custom_reaction,
+    extract_anon_message_text,
     find_emojis_in_str,
     get_name_from_author_obj,
     is_disallowed_reaction,
@@ -40,6 +41,7 @@ class MsgWrapper:
     @property
     def parent(self) -> Optional[int]:
         if self.is_reply:
+            assert self.msg.reply_to_message is not None
             return cast(int, self.msg.reply_to_message.message_id)
         return None
 
@@ -49,6 +51,12 @@ class MsgWrapper:
             self.is_simple_emoji_or_textual_reaction
             or self.is_many_reactions
             or self.is_custom_reaction
+        )
+
+    @property
+    def is_anon_message(self) -> bool:
+        return get_settings().anon_messages_allowed and bool(
+            extract_anon_message_text(self.text)
         )
 
     @property
