@@ -276,7 +276,7 @@ def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
     save_message_to_db(new_msg, is_anon=True)
 
 
-def receive_message(update: Update, context: CallbackContext) -> None:
+def handler_receive_message(update: Update, context: CallbackContext) -> None:
     logger.info("Message received")
     if update.edited_message:
         # skip edits
@@ -292,8 +292,13 @@ def receive_message(update: Update, context: CallbackContext) -> None:
     if msg.parent is None or not msg.is_reaction_msg:
         save_message_to_db(msg)
     else:
-        assert msg.parent is not None
-        parent: int = msg.parent
+        parent = msg.parent
+        assert parent is not None
+
+        logger.info("Handling a reaction message")
+
+        logger.info("removing the reaction message")
+        context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
 
         # odpowiedz na wiadomosc bota ma aktualizowac parenta
         with get_conn() as conn:
@@ -318,10 +323,8 @@ def receive_message(update: Update, context: CallbackContext) -> None:
             msg.chat_id,
         )
 
-        context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
 
-
-def echo_photo(update: Update, context: CallbackContext) -> None:
+def handler_save_msg_to_db(update: Update, context: CallbackContext) -> None:
     logger.info("Picture or sticker received")
     assert update.message is not None
     save_message_to_db(MsgWrapper(update.message))
@@ -612,10 +615,10 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     dispatcher.add_handler(
-        MessageHandler(Filters.text & ~Filters.command, receive_message)
+        MessageHandler(Filters.text & ~Filters.command, handler_receive_message)
     )
-    dispatcher.add_handler(MessageHandler(Filters.photo, echo_photo))
-    dispatcher.add_handler(MessageHandler(Filters.sticker, echo_photo))
+    dispatcher.add_handler(MessageHandler(Filters.photo, handler_save_msg_to_db))
+    dispatcher.add_handler(MessageHandler(Filters.sticker, handler_save_msg_to_db))
     dispatcher.add_handler(
         CallbackQueryHandler(button_callback_handler, pattern="^.*$")
     )
