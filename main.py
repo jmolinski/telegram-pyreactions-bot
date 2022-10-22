@@ -3,11 +3,10 @@ from __future__ import annotations
 import time
 
 from collections import defaultdict
-from typing import List, Optional
+from typing import List, Optional, Union, Any
 
 from telegram import (
     Bot,
-    CallbackQuery,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ParseMode,
@@ -373,8 +372,9 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
     assert isinstance(callback_data, str)
     assert callback_query.message is not None
     parent_msg = MsgWrapper(callback_query.message)
-    author = get_name_from_author_obj(update["callback_query"]["from_user"])
-    author_id = update["callback_query"]["from_user"]["id"]
+    callback_query_data: Any = update["callback_query"]
+    author = get_name_from_author_obj(callback_query_data["from_user"])
+    author_id = callback_query_data["from_user"]["id"]
     chat_id = parent_msg.chat_id
 
     logger.info(f"button: {callback_data}, {author}\nUpdate: {update}")
@@ -519,7 +519,7 @@ def show_best_messages(update: Update, context: CallbackContext) -> None:
         "group by message.id order by c desc ",
         "limit ?",
     ]
-    query_arguments = [min_timestamp, update.message.chat_id, n]
+    query_arguments: List[Union[int, str]] = [min_timestamp, update.message.chat_id, n]
 
     if len(context.args) > 2:
         user = context.args[2]
@@ -554,6 +554,10 @@ def get_help_features() -> str:
         (
             "To add a reaction with a custom text reply in the format of: `!react <text>`, or `!r <text>`",
             SETTINGS.custom_text_reaction_allowed,
+        ),
+        (
+            "To send an anonymous message with a custom text prefix it with: `!anon <text>`, or `!a <text>`",
+            SETTINGS.anon_messages_allowed,
         ),
         (
             rf"Banned reactions are: {disallowed_reactions}, `+n`, `-n` \(where `n != 1`\).",

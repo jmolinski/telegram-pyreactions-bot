@@ -100,6 +100,7 @@ class MsgWrapper:
 
     @property
     def text(self) -> str:
+        assert self.msg.text is not None
         lower_text = self.msg.text.lower()
 
         if lower_text in TEXTUAL_NORMALIZATION:
@@ -113,4 +114,5 @@ class MsgWrapper:
 
     @property
     def author_id(self) -> int:
+        assert self.msg.from_user is not None
         return cast(int, self.msg.from_user.id)
