@@ -8,8 +8,8 @@ from settings import get_settings
 
 T = TypeVar("T")
 
-CUSTOM_REACTION_PATTERN = re.compile("!(r(eact)?) (.*)")
-ANON_MSG_PATTERN = re.compile("!(a(non)?) (.*)")
+CUSTOM_REACTION_PATTERN = re.compile(r"!(r(eact)?)\s+(.*)")
+ANON_MSG_PATTERN = re.compile(r"!(a(non)?)\s+([\s\S]*)")
 
 
 def unique_list(lst: List[T]) -> List[T]:
