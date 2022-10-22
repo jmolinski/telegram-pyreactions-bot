@@ -531,8 +531,10 @@ def show_best_messages(update: Update, context: CallbackContext) -> None:
             "".join(query_parts), query_arguments
         ).fetchall()
 
+    wait_time_between_messages = 0.5
     parent_msg = MsgWrapper(update.message)
     for i, (user_id, message_id, cnt) in enumerate(reactions_received, start=1):
+        time.sleep(wait_time_between_messages)
         send_message(
             context.bot, parent_msg.chat_id, message_id, None, text=f"{i}. {cnt}"
         )
