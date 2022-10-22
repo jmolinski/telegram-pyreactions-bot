@@ -618,9 +618,9 @@ def main() -> None:
         CallbackQueryHandler(button_callback_handler, pattern="^.*$")
     )
 
-    dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=False))
+    dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=True))
     dispatcher.add_handler(
-        CommandHandler("most_reacted", show_best_messages, run_async=False)
+        CommandHandler("most_reacted", show_best_messages, run_async=True)
     )
     dispatcher.add_handler(CommandHandler("help", help_handler, run_async=True))
 
