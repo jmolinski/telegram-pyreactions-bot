@@ -204,7 +204,7 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
                 "DELETE from message where is_bot_reaction and parent=?",
                 (parent_msg_id,),
             )
-        bot.delete_message(chat_id=chat_id, message_id=opt_reactions_msg_id[0][0])
+        remove_message_with_retries(bot, chat_id, opt_reactions_msg_id[0][0])
     elif not opt_reactions_msg_id:
         # adding new reactions msg
         new_msg = send_message(
@@ -263,9 +263,27 @@ def toggle_reaction(
     add_delete_or_update_reaction_msg(bot, parent, chat_id)
 
 
+def remove_message_with_retries(
+    bot: Bot, chat_id: int, message_id: int, tries: int = 3
+) -> None:
+    assert tries > 0
+
+    try:
+        bot.delete_message(chat_id=chat_id, message_id=message_id)
+    except Exception as e:  # Not sure if all exceptions should be caught here
+        if tries > 1:
+            time_to_wait_before_retry = 0.025
+            time.sleep(time_to_wait_before_retry)
+            remove_message_with_retries(bot, chat_id, message_id, tries - 1)
+
+        raise Exception(
+            f"Failed to delete message(id={message_id}, chat_id={chat_id})"
+        ) from e
+
+
 def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
     # first remove the original message
-    context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
+    remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
     # then send a message with the same content
     extracted_anon_text = extract_anon_message_text(msg.text)
     assert extracted_anon_text is not None
@@ -298,7 +316,7 @@ def handler_receive_message(update: Update, context: CallbackContext) -> None:
         logger.info("Handling a reaction message")
 
         logger.info("removing the reaction message")
-        context.bot.delete_message(chat_id=msg.chat_id, message_id=msg.msg_id)
+        remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
 
         # odpowiedz na wiadomosc bota ma aktualizowac parenta
         with get_conn() as conn:
@@ -391,7 +409,7 @@ def button_callback_handler(update: Update, context: CallbackContext) -> None:
         assert parent_msg.parent is not None
         try:
             msg_id = int(callback_data.split("__")[0])
-            context.bot.delete_message(chat_id=chat_id, message_id=msg_id)
+            remove_message_with_retries(context.bot, chat_id, msg_id)
         except:
             pass
     else:
