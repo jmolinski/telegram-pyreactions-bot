@@ -29,13 +29,18 @@ from src.utils import (
 from src.handlers.common import save_message_to_db, make_msg_id, send_message
 
 
+MAX_REACTIONS_DISPLAYED_PER_LINE = 4
+
+TextCountTime = tuple[str, int, int]
+
+
 def get_show_reaction_stats_button(
     chat_id: int, parent_id: int
 ) -> InlineKeyboardButton:
     with get_conn() as conn:
         reactions_post_id_opt = list(
             conn.execute(
-                "SELECT id from message where is_bot_reaction and parent=?",
+                "SELECT id from message where parent=? and is_bot_reaction",
                 (make_msg_id(parent_id, chat_id),),
             ).fetchall()
         )
@@ -53,16 +58,20 @@ def get_show_reaction_stats_button(
     )
 
 
-def get_updated_reactions(parent_id: int, chat_id: int) -> InlineKeyboardMarkup:
-    msg_id = make_msg_id(parent_id, chat_id)
-
+def fetch_detailed_reactions_list_for_msg(msg_id: str) -> list[TextCountTime]:
     with get_conn() as conn:
         ret = conn.execute(
-            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
+            "select type, cnt, (select min(timestamp) from reaction where parent=? and type=subq.type) as time "
+            "from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq "
+            "order by -cnt, time",
             (msg_id, msg_id),
         )
-        reactions = list(ret.fetchall())
+        return list(ret.fetchall())
 
+
+def get_markup_displaying_reactions(
+    parent_id: int, chat_id: int, reactions: list[TextCountTime]
+) -> InlineKeyboardMarkup:
     markup = [
         InlineKeyboardButton(
             get_reaction_representation(r[0], r[1], with_count=True), callback_data=r[0]
@@ -74,44 +83,40 @@ def get_updated_reactions(parent_id: int, chat_id: int) -> InlineKeyboardMarkup:
         markup.append(get_show_reaction_stats_button(chat_id, parent_id))
 
     return InlineKeyboardMarkup(
-        inline_keyboard=split_into_chunks(markup, 4),
+        inline_keyboard=split_into_chunks(markup, MAX_REACTIONS_DISPLAYED_PER_LINE),
     )
 
 
 def update_message_markup(
-    bot: Bot, chat_id: int, message_id: int, parent_id: int
+    bot: Bot, chat_id: int, message_id: int, markup: InlineKeyboardMarkup
 ) -> None:
     bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=message_id,
-        reply_markup=get_updated_reactions(parent_id, chat_id),
+        reply_markup=markup,
     )
 
 
-def get_text_for_expanded(parent: int, chat_id: int) -> str:
+def get_text_for_expanded(
+    parent: int, chat_id: int, reactions: list[TextCountTime]
+) -> str:
     msg_id = make_msg_id(parent, chat_id)
 
-    with get_conn() as conn:
-        ret = conn.execute(
-            "select type, cnt, (select min(timestamp) from reaction where type=subq.type and parent=?) as time "
-            "from (SELECT type, count(*) as cnt from reaction where parent=? group by type) as subq order by -cnt, time;",
-            (msg_id, msg_id),
-        )
-        ordered_reactions = [(r[0], r[1]) for r in ret.fetchall()]
+    ordered_reactions = [(r[0], r[1]) for r in reactions]
 
     with get_conn() as conn:
         ret = conn.execute(
             "SELECT type, author from reaction where parent=?;",
             (msg_id,),
         )
-        reactions = defaultdict(list)
+        reactions_with_autors = defaultdict(list)
         for r in ret.fetchall():
-            reactions[r[0]].append(r[1])
+            reactions_with_autors[r[0]].append(r[1])
 
     return "\n".join(
         get_reaction_representation(reaction, count)
         + ": "
-        + ", ".join(reactions[reaction])
+        + ", ".join(reactions_with_autors[reaction])
         for reaction, count in ordered_reactions
     )
 
@@ -122,19 +127,22 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
     with get_conn() as conn:
         opt_reactions_msg_id = list(
             conn.execute(
-                "SELECT original_id, expanded from message where is_bot_reaction and parent=?",
+                "SELECT original_id, expanded from message where parent=? and is_bot_reaction",
                 (parent_msg_id,),
             ).fetchall()
         )
 
-    reactions_markups = get_updated_reactions(parent_id, chat_id)
+    reactions = fetch_detailed_reactions_list_for_msg(make_msg_id(parent_id, chat_id))
+    reactions_markups = get_markup_displaying_reactions(
+        parent_id, chat_id, reactions=reactions
+    )
 
     NO_REACTIONS = 1 if get_settings().show_summary_button else 0
     if len(reactions_markups.inline_keyboard[0]) == NO_REACTIONS:
         # removed last reaction
         with get_conn() as conn:
             conn.execute(
-                "DELETE from message where is_bot_reaction and parent=?",
+                "DELETE from message where parent=? and is_bot_reaction",
                 (parent_msg_id,),
             )
         remove_message_with_retries(bot, chat_id, opt_reactions_msg_id[0][0])
@@ -151,11 +159,13 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
             bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=opt_reactions_msg_id[0][0],
-                text=get_text_for_expanded(parent_id, chat_id),
+                text=get_text_for_expanded(parent_id, chat_id, reactions=reactions),
                 parse_mode="HTML",
             )
 
-        update_message_markup(bot, chat_id, opt_reactions_msg_id[0][0], parent_id)
+        update_message_markup(
+            bot, chat_id, opt_reactions_msg_id[0][0], reactions_markups
+        )
 
 
 def add_single_reaction(
@@ -176,8 +186,6 @@ def add_single_reaction(
             get_default_logger().info("adding")
             sql = "INSERT INTO reaction (parent, author, type, author_id, timestamp) VALUES (?, ?, ?, ?, ?);"
             conn.execute(sql, (parent, author, text, author_id, timestamp))
-
-        conn.commit()
 
 
 def toggle_reaction(
@@ -251,11 +259,11 @@ def handler_receive_message(update: Update, context: CallbackContext) -> None:
         get_default_logger().info("removing the reaction message")
         remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
 
-        # odpowiedz na wiadomosc bota ma aktualizowac parenta
+        # Replying to a bot reaction msg is relayed to its parent
         with get_conn() as conn:
             opt_parent = list(
                 conn.execute(
-                    "SELECT parent from message where is_bot_reaction and id=?",
+                    "SELECT parent from message where id=? and is_bot_reaction",
                     (make_msg_id(parent, msg.chat_id),),
                 ).fetchall()
             )
@@ -281,8 +289,8 @@ def handler_save_msg_to_db(update: Update, context: CallbackContext) -> None:
     save_message_to_db(MsgWrapper(update.message))
 
 
-def show_hide_summary(
-    bot: Bot, cmd: str, parent: int, reaction_post_id: int, chat_id: int
+def toggle_expanded_reactions_description(
+    bot: Bot, cmd: str, parent_id: int, reaction_post_id: int, chat_id: int
 ) -> None:
     reaction_msg_id = make_msg_id(reaction_post_id, chat_id)
 
@@ -298,8 +306,10 @@ def show_hide_summary(
             # race condition may produce multiple show/hide commands in a row
             return
 
+    reactions = fetch_detailed_reactions_list_for_msg(make_msg_id(parent_id, chat_id))
+
     if cmd == "show_reactions":
-        new_text = get_text_for_expanded(parent, chat_id)
+        new_text = get_text_for_expanded(parent_id, chat_id, reactions=reactions)
         with get_conn() as conn:
             conn.execute(
                 "UPDATE message SET expanded=TRUE where id=?;",
@@ -316,7 +326,10 @@ def show_hide_summary(
     bot.edit_message_text(
         chat_id=chat_id, message_id=reaction_post_id, text=new_text, parse_mode="HTML"
     )
-    update_message_markup(bot, chat_id, reaction_post_id, parent)
+    reactions_markups = get_markup_displaying_reactions(
+        parent_id, chat_id, reactions=reactions
+    )
+    update_message_markup(bot, chat_id, reaction_post_id, reactions_markups)
 
 
 def handler_button_callback(update: Update, context: CallbackContext) -> None:
@@ -335,7 +348,7 @@ def handler_button_callback(update: Update, context: CallbackContext) -> None:
 
     if callback_data.endswith("reactions"):
         assert parent_msg.parent is not None
-        show_hide_summary(
+        toggle_expanded_reactions_description(
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id, chat_id
         )
     elif callback_data.endswith("__delete"):

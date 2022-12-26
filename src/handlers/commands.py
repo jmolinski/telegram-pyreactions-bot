@@ -154,8 +154,7 @@ def handler_show_messages_with_most_reactions(
     query_arguments: list[int | str] = [
         min_timestamp,
         chat_id,
-        requested_messages_cnt
-        * 3,  # we fetch more messages to make sure we have enough, as some might be deleted
+        requested_messages_cnt * 3,  # fetch more messages, as some might be deleted
     ]
 
     if len(context.args) > 2:
