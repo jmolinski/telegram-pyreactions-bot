@@ -21,6 +21,7 @@ class Settings:
     custom_text_reaction_allowed: bool
     anon_messages_allowed: bool
     anon_msg_prefix: str
+    display_remove_ranking_button: bool
 
     def __init__(self, env_file_name: str) -> None:
         with open(env_file_name) as f:
@@ -38,6 +39,9 @@ class Settings:
         )
         self.anon_messages_allowed = content.get("anon_messages_allowed", False)
         self.anon_msg_prefix = content.get("anon_msg_prefix", "")
+        self.display_remove_ranking_button = content.get(
+            "display_remove_ranking_button", False
+        )
 
 
 def configure_settings(env_file_name: str | None = None) -> None:

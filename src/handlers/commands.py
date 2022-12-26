@@ -5,6 +5,8 @@ import time
 from telegram import (
     ParseMode,
     Update,
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
 )
 from telegram.ext import CallbackContext
 
@@ -92,15 +94,15 @@ def handler_show_ranking(update: Update, context: CallbackContext) -> None:
     )
     save_message_to_db(ranking_msg, is_ranking=True)
 
-    # uncomment to add a "delete" button to the ranking message
-    # delete_button = InlineKeyboardButton(
-    #     "delete ranking", callback_data=f"{ranking_msg.msg_id}__delete"
-    # )
-    # context.bot.edit_message_reply_markup(
-    #     chat_id=ranking_msg.chat_id,
-    #     message_id=ranking_msg.msg_id,
-    #     reply_markup=InlineKeyboardMarkup(inline_keyboard=[[delete_button]]),
-    # )
+    if get_settings().display_remove_ranking_button:
+        delete_button = InlineKeyboardButton(
+            "delete ranking", callback_data=f"{ranking_msg.msg_id}__delete"
+        )
+        context.bot.edit_message_reply_markup(
+            chat_id=ranking_msg.chat_id,
+            message_id=ranking_msg.msg_id,
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[delete_button]]),
+        )
 
 
 def handler_show_messages_with_most_reactions(

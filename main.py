@@ -28,11 +28,13 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # -- reactions & messages handlers --
-    dispatcher.add_handler(
-        MessageHandler(Filters.text & ~Filters.command, handler_receive_message)
-    )
-    dispatcher.add_handler(MessageHandler(Filters.photo, handler_save_msg_to_db))
-    dispatcher.add_handler(MessageHandler(Filters.sticker, handler_save_msg_to_db))
+    for filter, handler in [
+        (Filters.text & ~Filters.command, handler_receive_message),
+        (Filters.photo, handler_save_msg_to_db),
+        (Filters.sticker, handler_save_msg_to_db),
+    ]:
+        dispatcher.add_handler(MessageHandler(filter, handler))
+
     dispatcher.add_handler(
         CallbackQueryHandler(handler_button_callback, pattern="^.*$")
     )
