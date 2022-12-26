@@ -1,10 +1,12 @@
+from __future__ import annotations
+
 import re
 
 from typing import Any, TypeVar, cast
 
 import demoji
 
-from settings import get_settings
+from src.settings import get_settings
 
 T = TypeVar("T")
 

@@ -1,5 +1,6 @@
 CONFIG_FILENAME = "conf.json"
 DB_FILENAME = "test.db"
+SCHEMA_FILENAME = "src/schema.sql"
 
 EMPTY_MSG = "\xad\xad"
 INFORMATION_EMOJI = "ℹ️"
@@ -24,9 +25,9 @@ TEXTUAL_REACTIONS = (
     "nierel",
     "RiGCz",
     "rak",
+    "baza",
     "lenny",
     _LENNYFACE,
-    "baza",
 )
 
 REACTIONS_IN_SINGLE_MSG_LIMIT = 3

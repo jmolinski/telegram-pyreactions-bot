@@ -1,16 +1,17 @@
-from typing import cast
+from __future__ import annotations
 
-import demoji
+
+from typing import cast
 
 from telegram import Message as TelegramMessage
 
-from constants import (
+from src.constants import (
     TEXTUAL_NORMALIZATION,
     TEXTUAL_REACTIONS,
     REACTIONS_IN_SINGLE_MSG_LIMIT,
 )
-from settings import get_settings
-from utils import (
+from src.settings import get_settings
+from src.utils import (
     extract_custom_reaction,
     extract_anon_message_text,
     find_emojis_in_str,

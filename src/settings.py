@@ -1,11 +1,14 @@
+from __future__ import annotations
+
 import json
 
-import constants
+from src import constants
 
-SETTINGS = None
+SETTINGS: Settings
 
 __all__ = (
     "get_settings",
+    "configure_settings",
     "Settings",
 )
 
@@ -37,12 +40,16 @@ class Settings:
         self.anon_msg_prefix = content.get("anon_msg_prefix", "")
 
 
-def get_settings(env_file_name: str | None = None) -> Settings:
-    global SETTINGS
-
-    if SETTINGS:
-        return SETTINGS
-
+def configure_settings(env_file_name: str | None = None) -> None:
     env_file_name = env_file_name or constants.CONFIG_FILENAME
+
+    global SETTINGS
     SETTINGS = Settings(env_file_name)
+
+
+def get_settings() -> Settings:
+    global SETTINGS
+    if SETTINGS is None:
+        configure_settings()
+
     return SETTINGS

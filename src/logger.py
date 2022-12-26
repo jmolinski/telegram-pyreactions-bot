@@ -1,8 +1,11 @@
 import logging
 
-from settings import Settings
+from src.settings import get_settings, Settings
 
-__all__ = ("get_logger",)
+__all__ = (
+    "get_logger",
+    "get_default_logger",
+)
 
 LOGGER = None
 
@@ -21,3 +24,7 @@ def get_logger(settings: Settings) -> logging.Logger:
 
     LOGGER = logging.getLogger("pyreactions_bot")
     return LOGGER
+
+
+def get_default_logger() -> logging.Logger:
+    return get_logger(get_settings())

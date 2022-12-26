@@ -3,7 +3,7 @@ import sqlite3
 from contextlib import contextmanager
 from typing import Iterator
 
-import constants
+from src import constants
 
 
 @contextmanager
@@ -14,6 +14,6 @@ def get_conn() -> Iterator[sqlite3.Connection]:
     c.close()
 
 
-with open("schema.sql") as f:
+with open(constants.SCHEMA_FILENAME) as f:
     with get_conn() as conn:
         conn.executescript(f.read())
