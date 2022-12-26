@@ -58,7 +58,7 @@ def get_show_reaction_stats_button(
     )
 
 
-def fetch_detailed_reactions_list_for_msg(msg_id: str) -> list[TextCountTime]:
+def fetch_detailed_reactions_list_for_msg(msg_id: int) -> list[TextCountTime]:
     with get_conn() as conn:
         ret = conn.execute(
             "select type, cnt, (select min(timestamp) from reaction where parent=? and type=subq.type) as time "
@@ -132,7 +132,7 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
             ).fetchall()
         )
 
-    reactions = fetch_detailed_reactions_list_for_msg(make_msg_id(parent_id, chat_id))
+    reactions = fetch_detailed_reactions_list_for_msg(parent_msg_id)
     reactions_markups = get_markup_displaying_reactions(
         parent_id, chat_id, reactions=reactions
     )
@@ -169,7 +169,7 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
 
 
 def add_single_reaction(
-    parent: str, author: str, author_id: int, text: str, timestamp: int
+    parent: int, author: str, author_id: int, text: str, timestamp: int
 ) -> None:
     get_default_logger().info("Hangling add/remove reaction")
     with get_conn() as conn:

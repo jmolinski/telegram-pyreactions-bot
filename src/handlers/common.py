@@ -7,10 +7,11 @@ from src import constants
 from src.db import get_conn
 from src.logger import get_default_logger
 from src.message_wrapper import MsgWrapper
+from src.utils import hash_string
 
 
-def make_msg_id(msg_id: int, chat_id: int) -> str:
-    return f"{abs(chat_id)}:{abs(msg_id)}"
+def make_msg_id(msg_id: int, chat_id: int) -> int:
+    return hash_string(f"{abs(chat_id)}:{abs(msg_id)}")
 
 
 def send_message(

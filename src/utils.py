@@ -93,3 +93,15 @@ def _escape_markdown_v2(txt: str) -> str:
 
 def remove_emojis_from_text(txt: str) -> str:
     return demoji.replace(txt)  # type: ignore
+
+
+def hash_string(s: str) -> int:
+    # FNV-1a constants
+    fnv_prime = 0x100000001B3
+    fnv_offset_basis = 0xCBF29CE484222325
+
+    h = fnv_offset_basis
+    for c in s:
+        h ^= ord(c)
+        h *= fnv_prime
+    return h & 0xFFFFFFFFFFFFFFF

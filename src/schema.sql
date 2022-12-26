@@ -1,11 +1,11 @@
 CREATE TABLE IF NOT EXISTS message
 (
-    id              TEXT PRIMARY KEY,
+    id              INTEGER PRIMARY KEY,
     original_id     INT     NOT NULL,
     author_id       INT     NOT NULL,
     author          TEXT    NOT NULL,
     chat_id         INT     NOT NULL,
-    parent          TEXT,
+    parent          INTEGER,
     is_bot_reaction BOOLEAN NOT NULL,
     is_ranking      BOOLEAN NOT NULL,
     is_anon         BOOLEAN NOT NULL,
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS message
 CREATE TABLE IF NOT EXISTS reaction
 (
     id        INTEGER PRIMARY KEY,
-    parent    TEXT NOT NULL,
+    parent    INTEGER NOT NULL,
     author_id INT  NOT NULL,
     author    TEXT NOT NULL,
     type      TEXT NOT NULL,
