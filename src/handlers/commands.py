@@ -20,18 +20,23 @@ from src.utils import _escape_markdown_v2
 from src.handlers.common import send_message, save_message_to_db
 
 
+DEFAULT_RANKING_DAYS = 7
+DEFAULT_MOST_REACTED_MSGS_TO_SHOW = 10
+WAIT_TIME_BETWEEN_MESSAGES_SECONDS = 0.5
+
+
 def handler_show_ranking(update: Update, context: CallbackContext) -> None:
     assert update.message is not None
 
     try:
-        days = 7
+        days = DEFAULT_RANKING_DAYS
         if context.args:
             days = int(context.args[0])
             if days < 1:
                 update.message.reply_text("Days argument must be >= 1.")
                 return
     except (IndexError, ValueError):
-        update.message.reply_text("Usage: /ranking <optional days>")
+        update.message.reply_text("Usage: " + COMMANDS["ranking"]["usage"])
         return
 
     min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10**9)
@@ -111,8 +116,8 @@ def handler_show_messages_with_most_reactions(
     assert update.message is not None
     assert context.args is not None
 
-    days = 7
-    n = 10
+    days = DEFAULT_RANKING_DAYS
+    requested_messages_cnt = DEFAULT_MOST_REACTED_MSGS_TO_SHOW
     try:
         if context.args:
             days = int(context.args[0])
@@ -120,11 +125,14 @@ def handler_show_messages_with_most_reactions(
                 update.message.reply_text("Days argument must be >= 1.")
                 return
         if len(context.args) > 1:
-            n = min(int(context.args[1]), 30)
+            requested_messages_cnt = int(context.args[1])
+            if requested_messages_cnt < 1 or requested_messages_cnt > 30:
+                update.message.reply_text(
+                    "Number of messages must be between 1 and 30."
+                )
+                return
     except ValueError:
-        update.message.reply_text(
-            "Usage: /most_reacted <optional days> <optional number of messages> <optional user>"
-        )
+        update.message.reply_text("Usage: " + COMMANDS["top"]["usage"])
         return
 
     min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10**9)
@@ -138,7 +146,11 @@ def handler_show_messages_with_most_reactions(
         "group by message.id order by c desc ",
         "limit ?",
     ]
-    query_arguments: list[int | str] = [min_timestamp, update.message.chat_id, n]
+    query_arguments: list[int | str] = [
+        min_timestamp,
+        update.message.chat_id,
+        requested_messages_cnt,
+    ]
 
     if len(context.args) > 2:
         user = context.args[2]
@@ -150,7 +162,7 @@ def handler_show_messages_with_most_reactions(
             "".join(query_parts), query_arguments
         ).fetchall()
 
-    wait_time_between_messages = 0.5
+    wait_time_between_messages = WAIT_TIME_BETWEEN_MESSAGES_SECONDS
     parent_msg = MsgWrapper(update.message)
     for i, (user_id, message_id, cnt) in enumerate(reactions_received, start=1):
         time.sleep(wait_time_between_messages)
@@ -202,6 +214,13 @@ def get_help_features() -> str:
     )
 
 
+def get_help_for_commands() -> str:
+    return "\n".join(
+        f"{i}. `{command}` - {data['description']}\nUsage: `{data['usage']}`"
+        for i, (command, data) in enumerate(COMMANDS.items(), start=1)
+    )
+
+
 def _get_help_text() -> str:
     features_txt = get_help_features()
     res = f"""*Features:*
@@ -210,6 +229,9 @@ def _get_help_text() -> str:
 *Setup:*
 1. Add the bot to the conversation.
 2. Give it admin permissions. You can limit its permissions to only delete messages.
+
+*Commands:*
+{get_help_for_commands()}
 
 *For further support:*
 [Github Repository](https://github.com/jmolinski/telegram-pyreactions-bot/)
@@ -224,3 +246,22 @@ def handler_help(update: Update, context: CallbackContext) -> None:
     update.message.reply_text(
         help_text, parse_mode=ParseMode.MARKDOWN_V2, disable_web_page_preview=True
     )
+
+
+COMMANDS = {
+    "help": {
+        "description": "Show this help message.",
+        "usage": "/help",
+        "handler": handler_help,
+    },
+    "ranking": {
+        "description": "Show the ranking of users ordered by the received and given reactions.",
+        "usage": "/ranking [days]",
+        "handler": handler_show_ranking,
+    },
+    "top": {
+        "description": "Show the most reacted messages.",
+        "usage": "/top [days] [number of messages] [@author]",
+        "handler": handler_show_messages_with_most_reactions,
+    },
+}

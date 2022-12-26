@@ -11,11 +11,7 @@ from src.handlers.messages_and_reactions import (
     handler_save_msg_to_db,
     handler_button_callback,
 )
-from src.handlers.commands import (
-    handler_show_ranking,
-    handler_show_messages_with_most_reactions,
-    handler_help,
-)
+from src.handlers.commands import COMMANDS
 from src.settings import configure_settings, get_settings
 from src import constants
 
@@ -40,12 +36,8 @@ def main() -> None:
     )
 
     # -- commands handlers --
-    for command, handler, run_async in (
-        ("ranking", handler_show_ranking, True),
-        ("most_reacted", handler_show_messages_with_most_reactions, True),
-        ("help", handler_help, True),
-    ):
-        dispatcher.add_handler(CommandHandler(command, handler, run_async=run_async))
+    for command, data in COMMANDS.items():
+        dispatcher.add_handler(CommandHandler(command, data["handler"], run_async=True))
 
     updater.start_polling()
     updater.idle()

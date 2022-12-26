@@ -15,7 +15,7 @@ CONNECTION: sqlite3.Connection | None = None
 def get_conn() -> Iterator[sqlite3.Connection]:
     global CONNECTION
     if CONNECTION is None:
-        CONNECTION = sqlite3.connect(constants.DB_FILENAME)
+        CONNECTION = sqlite3.connect(constants.DB_FILENAME, check_same_thread=False)
 
     try:
         yield CONNECTION
