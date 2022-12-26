@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 
+import telegram.error
 from telegram import (
     ParseMode,
     Update,
@@ -23,6 +24,7 @@ from src.handlers.common import send_message, save_message_to_db
 DEFAULT_RANKING_DAYS = 7
 DEFAULT_MOST_REACTED_MSGS_TO_SHOW = 10
 WAIT_TIME_BETWEEN_MESSAGES_SECONDS = 0.5
+MAX_TIMESPAN_DAYS = 10 * 365
 
 
 def handler_show_ranking(update: Update, context: CallbackContext) -> None:
@@ -35,6 +37,7 @@ def handler_show_ranking(update: Update, context: CallbackContext) -> None:
             if days < 1:
                 update.message.reply_text("Days argument must be >= 1.")
                 return
+            days = min(days, MAX_TIMESPAN_DAYS)
     except (IndexError, ValueError):
         update.message.reply_text("Usage: " + COMMANDS["ranking"]["usage"])
         return
@@ -124,6 +127,7 @@ def handler_show_messages_with_most_reactions(
             if days < 1:
                 update.message.reply_text("Days argument must be >= 1.")
                 return
+            days = min(days, MAX_TIMESPAN_DAYS)
         if len(context.args) > 1:
             requested_messages_cnt = int(context.args[1])
             if requested_messages_cnt < 1 or requested_messages_cnt > 30:
@@ -135,6 +139,7 @@ def handler_show_messages_with_most_reactions(
         update.message.reply_text("Usage: " + COMMANDS["top"]["usage"])
         return
 
+    chat_id = MsgWrapper(update.message).chat_id
     min_timestamp = time.time_ns() - days * (24 * 60 * 60 * 10**9)
 
     query_parts = [
@@ -148,8 +153,9 @@ def handler_show_messages_with_most_reactions(
     ]
     query_arguments: list[int | str] = [
         min_timestamp,
-        update.message.chat_id,
-        requested_messages_cnt,
+        chat_id,
+        requested_messages_cnt
+        * 3,  # we fetch more messages to make sure we have enough, as some might be deleted
     ]
 
     if len(context.args) > 2:
@@ -163,12 +169,21 @@ def handler_show_messages_with_most_reactions(
         ).fetchall()
 
     wait_time_between_messages = WAIT_TIME_BETWEEN_MESSAGES_SECONDS
-    parent_msg = MsgWrapper(update.message)
-    for i, (user_id, message_id, cnt) in enumerate(reactions_received, start=1):
+    sent_cnt = 0
+    for user_id, message_id, cnt in reactions_received:
         time.sleep(wait_time_between_messages)
-        send_message(
-            context.bot, parent_msg.chat_id, message_id, None, text=f"{i}. {cnt}"
-        )
+        try:
+            send_message(
+                context.bot, chat_id, message_id, None, text=f"{sent_cnt + 1}. {cnt}"
+            )
+            sent_cnt += 1
+        except telegram.error.BadRequest as e:
+            if "Replied message not found" in str(e):
+                continue
+            raise
+
+        if sent_cnt >= requested_messages_cnt:
+            break
 
 
 def get_help_features() -> str:
