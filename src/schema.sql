@@ -24,5 +24,7 @@ CREATE TABLE IF NOT EXISTS reaction
     type      TEXT NOT NULL,
     timestamp INT  NOT NULL,
 
+    INDEX parent_idx (parent),
+
     FOREIGN KEY (parent) REFERENCES message (id)
 );
