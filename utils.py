@@ -1,6 +1,6 @@
 import re
 
-from typing import Any, Dict, List, Optional, TypeVar, cast
+from typing import Any, TypeVar, cast
 
 import demoji
 
@@ -12,7 +12,7 @@ CUSTOM_REACTION_PATTERN = re.compile(r"!(r(eact)?)\s+(.*)")
 ANON_MSG_PATTERN = re.compile(r"!(a(non)?)\s+([\s\S]*)")
 
 
-def unique_list(lst: List[T]) -> List[T]:
+def unique_list(lst: list[T]) -> list[T]:
     n = []
     for item in lst:
         if item not in n:
@@ -20,18 +20,18 @@ def unique_list(lst: List[T]) -> List[T]:
     return n
 
 
-def split_into_chunks(lst: List[T], n: int) -> List[List[T]]:
+def split_into_chunks(lst: list[T], n: int) -> list[list[T]]:
     return [lst[i : i + n] for i in range(0, len(lst), n)]
 
 
-def get_name_from_author_obj(data: Dict[Any, Any]) -> str:
+def get_name_from_author_obj(data: dict[Any, Any]) -> str:
     username = data["username"]
     first_name = data["first_name"]
     return cast(str, username or first_name)
 
 
-def find_emojis_in_str(s: str) -> List[str]:
-    return cast(List[str], demoji.findall_list(s, desc=False))
+def find_emojis_in_str(s: str) -> list[str]:
+    return demoji.findall_list(s, desc=False)  # type: ignore
 
 
 def get_reaction_representation(text: str, count: int, with_count: bool = False) -> str:
@@ -46,7 +46,7 @@ def get_reaction_representation(text: str, count: int, with_count: bool = False)
             return text
 
 
-def try_int(v: str, default: Optional[int] = None) -> Optional[int]:
+def try_int(v: str, default: int | None = None) -> int | None:
     try:
         return int(v)
     except:
@@ -62,7 +62,7 @@ def is_disallowed_reaction(r: str) -> bool:
     return r in get_settings().disallowed_reactions
 
 
-def extract_custom_reaction(t: str) -> Optional[str]:
+def extract_custom_reaction(t: str) -> str | None:
     t = t.strip()
     match = re.match(CUSTOM_REACTION_PATTERN, t)
     if match is None:
@@ -75,7 +75,7 @@ def extract_custom_reaction(t: str) -> Optional[str]:
     return reaction
 
 
-def extract_anon_message_text(t: str) -> Optional[str]:
+def extract_anon_message_text(t: str) -> str | None:
     t = t.strip()
     match = re.match(ANON_MSG_PATTERN, t)
     if match is None:
@@ -87,3 +87,7 @@ def extract_anon_message_text(t: str) -> Optional[str]:
 
 def _escape_markdown_v2(txt: str) -> str:
     return re.sub("(?=[~>#+-=|{}.!])", "\\\\", txt)
+
+
+def remove_emojis_from_text(txt: str) -> str:
+    return demoji.replace(txt)  # type: ignore

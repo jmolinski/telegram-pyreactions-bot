@@ -1,4 +1,4 @@
-from typing import List, Optional, cast
+from typing import cast
 
 import demoji
 
@@ -17,6 +17,7 @@ from utils import (
     get_name_from_author_obj,
     is_disallowed_reaction,
     unique_list,
+    remove_emojis_from_text,
 )
 
 
@@ -39,7 +40,7 @@ class MsgWrapper:
         return cast(int, self.msg.chat.id)
 
     @property
-    def parent(self) -> Optional[int]:
+    def parent(self) -> int | None:
         if self.is_reply:
             assert self.msg.reply_to_message is not None
             return cast(int, self.msg.reply_to_message.message_id)
@@ -49,7 +50,7 @@ class MsgWrapper:
     def is_reaction_msg(self) -> bool:
         return (
             self.is_simple_emoji_or_textual_reaction
-            or self.is_many_reactions
+            or self.is_multiple_reactions
             or self.is_custom_reaction
         )
 
@@ -67,17 +68,19 @@ class MsgWrapper:
             return True
 
         found_reactions = find_emojis_in_str(self.text)
-        return len(found_reactions) == 1 and not demoji.replace(self.text).strip()
+        return (
+            len(found_reactions) == 1 and not remove_emojis_from_text(self.text).strip()
+        )
 
     @property
-    def is_many_reactions(self) -> bool:
+    def is_multiple_reactions(self) -> bool:
         found_reactions = find_emojis_in_str(self.text)
         if any(is_disallowed_reaction(r) for r in found_reactions):
             return False
 
         return (
             REACTIONS_IN_SINGLE_MSG_LIMIT >= len(found_reactions) > 1
-            and not demoji.replace(self.text).strip()
+            and not remove_emojis_from_text(self.text).strip()
         )
 
     @property
@@ -88,10 +91,10 @@ class MsgWrapper:
         return bool(extract_custom_reaction(self.text))
 
     @property
-    def get_reactions_list(self) -> List[str]:
+    def get_reactions_list(self) -> list[str]:
         if self.is_simple_emoji_or_textual_reaction:
             return [self.text]
-        elif self.is_many_reactions:
+        elif self.is_multiple_reactions:
             return unique_list(find_emojis_in_str(self.text))
         elif self.is_custom_reaction:
             return [cast(str, extract_custom_reaction(self.text))]

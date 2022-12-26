@@ -1,19 +1,20 @@
 import json
 
-from typing import Optional, Set
-
 import constants
 
 SETTINGS = None
 
-__all__ = ("get_settings",)
+__all__ = (
+    "get_settings",
+    "Settings",
+)
 
 
 class Settings:
     log_file: str
     token: str
     show_summary_button: bool
-    disallowed_reactions: Set[str]
+    disallowed_reactions: set[str]
     custom_text_reaction_allowed: bool
     anon_messages_allowed: bool
     anon_msg_prefix: str
@@ -36,7 +37,7 @@ class Settings:
         self.anon_msg_prefix = content.get("anon_msg_prefix", "")
 
 
-def get_settings(env_file_name: Optional[str] = None) -> Settings:
+def get_settings(env_file_name: str | None = None) -> Settings:
     global SETTINGS
 
     if SETTINGS:

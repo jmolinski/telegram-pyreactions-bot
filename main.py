@@ -3,8 +3,9 @@ from __future__ import annotations
 import time
 
 from collections import defaultdict
-from typing import List, Optional, Union, Any
+from typing import Any
 
+import telegram.ext
 from telegram import (
     Bot,
     InlineKeyboardButton,
@@ -47,9 +48,9 @@ def make_msg_id(msg_id: int, chat_id: int) -> str:
 def send_message(
     bot: Bot,
     chat_id: int,
-    parent_id: Optional[int] = None,
-    markup: Optional[InlineKeyboardMarkup] = None,
-    text: Optional[str] = None,
+    parent_id: int | None = None,
+    markup: InlineKeyboardMarkup | None = None,
+    text: str | None = None,
 ) -> MsgWrapper:
     if text is None:
         text = EMPTY_MSG
@@ -251,7 +252,7 @@ def toggle_reaction(
     bot: Bot,
     parent: int,
     author: str,
-    reactions: List[str],
+    reactions: list[str],
     author_id: int,
     chat_id: int,
 ) -> None:
@@ -511,7 +512,7 @@ def show_ranking(update: Update, context: CallbackContext) -> None:
     # )
 
 
-def show_best_messages(update: Update, context: CallbackContext) -> None:
+def show_messages_with_most_reactions(update: Update, context: CallbackContext) -> None:
     assert update.message is not None
     assert context.args is not None
 
@@ -542,7 +543,7 @@ def show_best_messages(update: Update, context: CallbackContext) -> None:
         "group by message.id order by c desc ",
         "limit ?",
     ]
-    query_arguments: List[Union[int, str]] = [min_timestamp, update.message.chat_id, n]
+    query_arguments: list[int | str] = [min_timestamp, update.message.chat_id, n]
 
     if len(context.args) > 2:
         user = context.args[2]
@@ -645,7 +646,9 @@ def main() -> None:
 
     dispatcher.add_handler(CommandHandler("ranking", show_ranking, run_async=True))
     dispatcher.add_handler(
-        CommandHandler("most_reacted", show_best_messages, run_async=True)
+        CommandHandler(
+            "most_reacted", show_messages_with_most_reactions, run_async=True
+        )
     )
     dispatcher.add_handler(CommandHandler("help", help_handler, run_async=True))
 
