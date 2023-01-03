@@ -104,4 +104,4 @@ def hash_string(s: str) -> int:
     for c in s:
         h ^= ord(c)
         h *= fnv_prime
-    return h & 0xFFFFFFFFFFFFFFF
+    return h & 0xFFFFFFFFFFFFFFFF
