@@ -114,7 +114,7 @@ class MsgWrapper:
 
     @property
     def author(self) -> str:
-        return get_name_from_author_obj(self.msg["from_user"])
+        return get_name_from_author_obj(cast(dict, self.msg["from_user"]))
 
     @property
     def author_id(self) -> int:

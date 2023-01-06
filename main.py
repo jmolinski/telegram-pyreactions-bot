@@ -1,9 +1,9 @@
 from telegram.ext import (
     CallbackQueryHandler,
     CommandHandler,
-    Filters,
+    filters,
     MessageHandler,
-    Updater,
+    Application,
 )
 
 from src.handlers.messages_and_reactions import (
@@ -16,37 +16,40 @@ from src.settings import configure_settings, get_settings
 from src import constants
 
 
+async def post_init_set_bot_commands(application: Application) -> None:
+    await application.bot.set_my_commands(
+        [(command.name(), command.description) for command in COMMANDS]
+    )
+
+
 def main() -> None:
     configure_settings(constants.CONFIG_FILENAME)
     settings = get_settings()
 
-    updater = Updater(settings.token, workers=1)
-    dispatcher = updater.dispatcher
+    application = (
+        Application.builder()
+        .token(settings.token)
+        .post_init(post_init_set_bot_commands)
+        .build()
+    )
 
     # -- reactions & messages handlers --
     for filter_, handler in [
-        (Filters.text & ~Filters.command, handler_receive_message),
-        (Filters.photo, handler_save_msg_to_db),
-        (Filters.sticker, handler_save_msg_to_db),
+        (filters.TEXT & ~filters.COMMAND, handler_receive_message),
+        (filters.PHOTO, handler_save_msg_to_db),
+        # (filters.Sticker, handler_save_msg_to_db), TODO port to v20
     ]:
-        dispatcher.add_handler(MessageHandler(filter_, handler))
+        application.add_handler(MessageHandler(filter_, handler))
 
-    dispatcher.add_handler(
+    application.add_handler(
         CallbackQueryHandler(handler_button_callback, pattern="^.*$")
     )
 
     # -- commands handlers --
     for command in COMMANDS:
-        dispatcher.add_handler(
-            CommandHandler(command.name(), command.handler, run_async=True)
-        )
+        application.add_handler(CommandHandler(command.name(), command.handler))
 
-    updater.bot.set_my_commands(
-        (command.name(), command.description) for command in COMMANDS
-    )
-
-    updater.start_polling()
-    updater.idle()
+    application.run_polling()
 
 
 if __name__ == "__main__":

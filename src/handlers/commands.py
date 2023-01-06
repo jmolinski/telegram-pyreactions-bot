@@ -1,7 +1,7 @@
 from __future__ import annotations
 from abc import ABC
 import time
-from typing import Callable, Type
+from typing import Callable, Type, Awaitable
 import telegram.error
 from telegram import (
     Update,
@@ -35,23 +35,23 @@ class UsageError(Exception):
 class CommandHandler(ABC):
     description: str
     usage: str
-    _handler: Callable[[Update, CallbackContext], None]
+    _handler: Callable[[Update, CallbackContext], Awaitable[None]]
 
     @classmethod
     def name(cls) -> str:
         return cls.__name__.lower().replace("commandhandler", "")
 
     @classmethod
-    def handler(cls, update: Update, context: CallbackContext) -> None:
+    async def handler(cls, update: Update, context: CallbackContext) -> None:
         try:
-            cls._handler(update, context)
+            await cls._handler(update, context)
         except UsageError as e:
             if e.args:
                 error_message = f"Usage error: {', '.join(e.args)}"
             else:
                 error_message = "Usage: " + cls.usage
 
-            send_reply(update, context, error_message, save_to_db=True)
+            await send_reply(update, context, error_message, save_to_db=True)
 
 
 class RankingCommandHandler(CommandHandler):
@@ -61,7 +61,7 @@ class RankingCommandHandler(CommandHandler):
     usage = "/ranking [days]"
 
     @staticmethod
-    def _handler(update: Update, context: CallbackContext) -> None:
+    async def _handler(update: Update, context: CallbackContext) -> None:
         assert update.message is not None
 
         try:
@@ -130,7 +130,7 @@ class RankingCommandHandler(CommandHandler):
 
                 text += f"{i}. {username}: {cnt}\n"
 
-        ranking_msg = send_reply(
+        ranking_msg = await send_reply(
             update, context, text, save_to_db=True, is_ranking=True
         )
 
@@ -138,7 +138,7 @@ class RankingCommandHandler(CommandHandler):
             delete_button = InlineKeyboardButton(
                 "delete ranking", callback_data=f"{ranking_msg.msg_id}__delete"
             )
-            context.bot.edit_message_reply_markup(
+            await context.bot.edit_message_reply_markup(
                 chat_id=ranking_msg.chat_id,
                 message_id=ranking_msg.msg_id,
                 reply_markup=InlineKeyboardMarkup(inline_keyboard=[[delete_button]]),
@@ -150,7 +150,7 @@ class TopCommandHandler(CommandHandler):
     usage = "/top [days] [number of messages] [@author]"
 
     @staticmethod
-    def _handler(update: Update, context: CallbackContext) -> None:
+    async def _handler(update: Update, context: CallbackContext) -> None:
         assert update.message is not None
         assert context.args is not None
 
@@ -214,7 +214,7 @@ class TopCommandHandler(CommandHandler):
         for message_id, cnt in reactions_received:
             time.sleep(wait_time_between_messages)
             try:
-                send_message(
+                await send_message(
                     context.bot,
                     chat_id,
                     message_id,
@@ -305,17 +305,17 @@ class HelpCommandHandler(CommandHandler):
         return _escape_markdown_v2(res)
 
     @classmethod
-    def _handler(cls, update: Update, context: CallbackContext) -> None:
+    async def _handler(cls, update: Update, context: CallbackContext) -> None:
         help_text = cls.get_help_text()
 
         if context.args:
             raise UsageError()
 
-        send_reply(
+        await send_reply(
             update,
             context,
             help_text,
-            parse_mode=telegram.ParseMode.MARKDOWN_V2,
+            parse_mode=telegram.constants.ParseMode.MARKDOWN_V2,
             disable_web_page_preview=True,
             save_to_db=True,
         )
