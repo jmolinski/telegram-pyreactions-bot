@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-
+import asyncio
 from collections import defaultdict
 from typing import Any
 
@@ -87,10 +87,10 @@ def get_markup_displaying_reactions(
     )
 
 
-def update_message_markup(
+async def update_message_markup(
     bot: Bot, chat_id: int, message_id: int, markup: InlineKeyboardMarkup
 ) -> None:
-    bot.edit_message_reply_markup(
+    await bot.edit_message_reply_markup(
         chat_id=chat_id,
         message_id=message_id,
         reply_markup=markup,
@@ -121,7 +121,9 @@ def get_text_for_expanded(
     )
 
 
-def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) -> None:
+async def add_delete_or_update_reaction_msg(
+    bot: Bot, parent_id: int, chat_id: int
+) -> None:
     parent_msg_id = make_msg_id(parent_id, chat_id)
 
     with get_conn() as conn:
@@ -147,10 +149,10 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
                 "DELETE from message where parent=? and is_bot_reaction",
                 (parent_msg_id,),
             )
-        remove_message_with_retries(bot, chat_id, opt_reactions_msg_id[0][0])
+        await remove_message_with_retries(bot, chat_id, opt_reactions_msg_id[0][0])
     elif not opt_reactions_msg_id:
         # adding new reactions msg
-        send_message(
+        await send_message(
             bot,
             chat_id,
             parent_id=parent_id,
@@ -162,22 +164,22 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
         # updating existing reactions post
         # if expanded update text
         if opt_reactions_msg_id[0][1]:
-            bot.edit_message_text(
+            await bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=opt_reactions_msg_id[0][0],
                 text=get_text_for_expanded(parent_id, chat_id, reactions=reactions),
                 parse_mode="HTML",
             )
 
-        update_message_markup(
+        await update_message_markup(
             bot, chat_id, opt_reactions_msg_id[0][0], reactions_markups
         )
 
 
-def add_single_reaction(
+def add_single_reaction_to_db(
     parent: int, author: str, author_id: int, text: str, timestamp: int
 ) -> None:
-    get_default_logger().info("Hangling add/remove reaction")
+    get_default_logger().info("Handling add/remove reaction")
     with get_conn() as conn:
         ret = conn.execute(
             "SELECT id from reaction where parent=? and author_id=? and type=?;",
@@ -197,7 +199,7 @@ def add_single_reaction(
             conn.execute(sql, (parent, author, text, author_id, timestamp))
 
 
-def toggle_reaction(
+async def toggle_reaction(
     bot: Bot,
     parent: int,
     author: str,
@@ -206,39 +208,40 @@ def toggle_reaction(
     chat_id: int,
 ) -> None:
     for r in reactions:
-        add_single_reaction(
+        add_single_reaction_to_db(
             make_msg_id(parent, chat_id), author, author_id, r, time.time_ns()
         )
 
-    add_delete_or_update_reaction_msg(bot, parent, chat_id)
+    await add_delete_or_update_reaction_msg(bot, parent, chat_id)
 
 
-def remove_message_with_retries(
+async def remove_message_with_retries(
     bot: Bot, chat_id: int, message_id: int, tries: int = 3
 ) -> None:
     assert tries > 0
 
     try:
-        bot.delete_message(chat_id=chat_id, message_id=message_id)
+        await bot.delete_message(chat_id=chat_id, message_id=message_id)
     except Exception as e:  # Not sure if all exceptions should be caught here
         if tries > 1:
+            # TODO convert to jobqueue
             time_to_wait_before_retry = 0.025
-            time.sleep(time_to_wait_before_retry)
-            remove_message_with_retries(bot, chat_id, message_id, tries - 1)
+            await asyncio.sleep(time_to_wait_before_retry)
+            await remove_message_with_retries(bot, chat_id, message_id, tries - 1)
 
         raise Exception(
             f"Failed to delete message(id={message_id}, chat_id={chat_id})"
         ) from e
 
 
-def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
+async def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
     # first remove the original message
-    remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
+    await remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
     # then send a message with the same content
     extracted_anon_text = extract_anon_message_text(msg.text)
     assert extracted_anon_text is not None
     anonimized_text = get_settings().anon_msg_prefix + extracted_anon_text
-    send_message(
+    await send_message(
         context.bot,
         msg.chat_id,
         parent_id=msg.parent,
@@ -248,7 +251,7 @@ def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
     )
 
 
-def handler_receive_message(update: Update, context: CallbackContext) -> None:
+async def handler_receive_message(update: Update, context: CallbackContext) -> None:
     get_default_logger().info("Message received")
     if update.edited_message:
         # skip edits
@@ -258,7 +261,7 @@ def handler_receive_message(update: Update, context: CallbackContext) -> None:
     msg = MsgWrapper(update.message)
 
     if msg.is_anon_message:
-        repost_anon_message(context, msg)
+        await repost_anon_message(context, msg)
         return
 
     if msg.parent is None or not msg.is_reaction_msg:
@@ -267,10 +270,8 @@ def handler_receive_message(update: Update, context: CallbackContext) -> None:
         parent = msg.parent
         assert parent is not None
 
-        get_default_logger().info("Handling a reaction message")
-
         get_default_logger().info("removing the reaction message")
-        remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
+        await remove_message_with_retries(context.bot, msg.chat_id, msg.msg_id)
 
         # Replying to a bot reaction msg is relayed to its parent
         with get_conn() as conn:
@@ -286,7 +287,7 @@ def handler_receive_message(update: Update, context: CallbackContext) -> None:
                     (opt_parent[0][0],),
                 ).fetchone()[0]
 
-        toggle_reaction(
+        await toggle_reaction(
             context.bot,
             parent,
             msg.author,
@@ -296,13 +297,13 @@ def handler_receive_message(update: Update, context: CallbackContext) -> None:
         )
 
 
-def handler_save_msg_to_db(update: Update, context: CallbackContext) -> None:
+async def handler_save_msg_to_db(update: Update, context: CallbackContext) -> None:
     get_default_logger().info("Picture or sticker received")
     assert update.message is not None
     save_message_to_db(MsgWrapper(update.message))
 
 
-def toggle_expanded_reactions_description(
+async def toggle_expanded_reactions_description(
     bot: Bot, cmd: str, parent_id: int, reaction_post_id: int, chat_id: int
 ) -> None:
     reaction_msg_id = make_msg_id(reaction_post_id, chat_id)
@@ -336,16 +337,16 @@ def toggle_expanded_reactions_description(
                 (reaction_msg_id,),
             )
 
-    bot.edit_message_text(
+    await bot.edit_message_text(
         chat_id=chat_id, message_id=reaction_post_id, text=new_text, parse_mode="HTML"
     )
     reactions_markups = get_markup_displaying_reactions(
         parent_id, chat_id, reactions=reactions
     )
-    update_message_markup(bot, chat_id, reaction_post_id, reactions_markups)
+    await update_message_markup(bot, chat_id, reaction_post_id, reactions_markups)
 
 
-def handler_button_callback(update: Update, context: CallbackContext) -> None:
+async def handler_button_callback(update: Update, context: CallbackContext) -> None:
     assert update.callback_query is not None
     callback_query = update.callback_query
     callback_data = callback_query.data
@@ -361,19 +362,19 @@ def handler_button_callback(update: Update, context: CallbackContext) -> None:
 
     if callback_data.endswith("reactions"):
         assert parent_msg.parent is not None
-        toggle_expanded_reactions_description(
+        await toggle_expanded_reactions_description(
             context.bot, callback_data, parent_msg.parent, parent_msg.msg_id, chat_id
         )
     elif callback_data.endswith("__delete"):
         assert parent_msg.parent is not None
         try:
             msg_id = int(callback_data.split("__")[0])
-            remove_message_with_retries(context.bot, chat_id, msg_id)
+            await remove_message_with_retries(context.bot, chat_id, msg_id)
         except Exception as e:
             get_default_logger().error(f"Failed to delete message: {e}")
     else:
         assert parent_msg.parent is not None
-        toggle_reaction(
+        await toggle_reaction(
             context.bot,
             parent=parent_msg.parent,
             author=author,
@@ -382,4 +383,4 @@ def handler_button_callback(update: Update, context: CallbackContext) -> None:
             chat_id=chat_id,
         )
 
-    context.bot.answer_callback_query(update.callback_query.id)
+    await context.bot.answer_callback_query(update.callback_query.id)

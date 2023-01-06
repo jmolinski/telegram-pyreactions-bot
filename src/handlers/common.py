@@ -18,7 +18,7 @@ def make_msg_id(msg_id: int, chat_id: int) -> int:
     return hash_string(f"{abs(chat_id)}:{abs(msg_id)}")
 
 
-def send_message(
+async def send_message(
     bot: Bot,
     chat_id: int,
     parent_id: int | None = None,
@@ -47,7 +47,7 @@ def send_message(
     if kwargs:
         base_args.update(kwargs)
 
-    sent_msg = MsgWrapper(bot.send_message(**base_args))
+    sent_msg = MsgWrapper(await bot.send_message(**base_args))
 
     if save_to_db:
         save_message_to_db(
@@ -60,7 +60,7 @@ def send_message(
     return sent_msg
 
 
-def send_reply(
+async def send_reply(
     update: Update,
     context: CallbackContext,
     text: str,
@@ -72,7 +72,7 @@ def send_reply(
     **kwargs: Any,
 ) -> MsgWrapper:
     parent_msg = MsgWrapper(update.message)
-    reply_msg = send_message(
+    reply_msg = await send_message(
         context.bot,
         parent_msg.chat_id,
         parent_msg.msg_id,
