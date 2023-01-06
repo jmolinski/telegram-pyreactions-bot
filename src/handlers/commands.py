@@ -4,7 +4,6 @@ import time
 from typing import Callable, Type
 import telegram.error
 from telegram import (
-    ParseMode,
     Update,
     InlineKeyboardButton,
     InlineKeyboardMarkup,

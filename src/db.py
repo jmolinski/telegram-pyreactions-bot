@@ -20,7 +20,8 @@ def get_conn() -> Iterator[sqlite3.Connection]:
     try:
         yield CONNECTION
     except:
-        # TODO handle errors, recreate connection? would the exception be raised here or in .commit?
+        # TODO handle errors, recreate connection?
+        # would the exception be raised here or in .commit?
         raise
 
     CONNECTION.commit()

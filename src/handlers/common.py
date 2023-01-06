@@ -97,8 +97,8 @@ def save_message_to_db(
 ) -> None:
     get_default_logger().info("Savin message to db")
     sql = (
-        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction, is_ranking, is_anon) \n"
-        f"VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"
+        "INSERT INTO message (id, original_id, author_id, author, chat_id, parent, is_bot_reaction, is_ranking, is_anon) "
+        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);"
     )
     with get_conn() as conn:
         conn.execute(

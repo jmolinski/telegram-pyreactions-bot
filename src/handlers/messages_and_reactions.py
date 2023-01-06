@@ -127,7 +127,9 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
     with get_conn() as conn:
         opt_reactions_msg_id = list(
             conn.execute(
-                "SELECT original_id, expanded from message where parent=? and is_bot_reaction",
+                "SELECT original_id, expanded "
+                "from message "
+                "where parent=? and is_bot_reaction",
                 (parent_msg_id,),
             ).fetchall()
         )
@@ -188,7 +190,10 @@ def add_single_reaction(
             conn.execute("DELETE from reaction where id=?;", (reaction_exists[0][0],))
         else:
             get_default_logger().info("adding")
-            sql = "INSERT INTO reaction (parent, author, type, author_id, timestamp) VALUES (?, ?, ?, ?, ?);"
+            sql = (
+                "INSERT INTO reaction (parent, author, type, author_id, timestamp) "
+                "VALUES (?, ?, ?, ?, ?);"
+            )
             conn.execute(sql, (parent, author, text, author_id, timestamp))
 
 
@@ -364,8 +369,8 @@ def handler_button_callback(update: Update, context: CallbackContext) -> None:
         try:
             msg_id = int(callback_data.split("__")[0])
             remove_message_with_retries(context.bot, chat_id, msg_id)
-        except:
-            pass
+        except Exception as e:
+            get_default_logger().error(f"Failed to delete message: {e}")
     else:
         assert parent_msg.parent is not None
         toggle_reaction(
