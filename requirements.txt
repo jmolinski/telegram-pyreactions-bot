@@ -17,3 +17,4 @@ tornado==6.1
 typing_extensions==4.4.0
 tzdata==2022.7
 tzlocal==4.2
+ruff

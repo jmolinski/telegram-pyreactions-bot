@@ -51,7 +51,7 @@ def get_reaction_representation(text: str, count: int, with_count: bool = False)
 def try_int(v: str, default: int | None = None) -> int | None:
     try:
         return int(v)
-    except:
+    except ValueError:
         return default
 
 
