@@ -24,12 +24,12 @@ def main() -> None:
     dispatcher = updater.dispatcher
 
     # -- reactions & messages handlers --
-    for filter, handler in [
+    for filter_, handler in [
         (Filters.text & ~Filters.command, handler_receive_message),
         (Filters.photo, handler_save_msg_to_db),
         (Filters.sticker, handler_save_msg_to_db),
     ]:
-        dispatcher.add_handler(MessageHandler(filter, handler))
+        dispatcher.add_handler(MessageHandler(filter_, handler))
 
     dispatcher.add_handler(
         CallbackQueryHandler(handler_button_callback, pattern="^.*$")
