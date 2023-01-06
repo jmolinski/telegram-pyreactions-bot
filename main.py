@@ -36,11 +36,13 @@ def main() -> None:
     )
 
     # -- commands handlers --
-    for command, data in COMMANDS.items():
-        dispatcher.add_handler(CommandHandler(command, data["handler"], run_async=True))
+    for command in COMMANDS:
+        dispatcher.add_handler(
+            CommandHandler(command.name(), command.handler, run_async=True)
+        )
 
     updater.bot.set_my_commands(
-        (cmd, data["description"]) for cmd, data in COMMANDS.items()
+        (command.name(), command.description) for command in COMMANDS
     )
 
     updater.start_polling()

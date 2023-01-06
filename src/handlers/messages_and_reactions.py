@@ -148,10 +148,14 @@ def add_delete_or_update_reaction_msg(bot: Bot, parent_id: int, chat_id: int) ->
         remove_message_with_retries(bot, chat_id, opt_reactions_msg_id[0][0])
     elif not opt_reactions_msg_id:
         # adding new reactions msg
-        new_msg = send_message(
-            bot, chat_id, parent_id=parent_id, markup=reactions_markups
+        send_message(
+            bot,
+            chat_id,
+            parent_id=parent_id,
+            markup=reactions_markups,
+            save_to_db=True,
+            is_bot_reaction=True,
         )
-        save_message_to_db(new_msg, is_bot_reaction=True)
     else:
         # updating existing reactions post
         # if expanded update text
@@ -229,10 +233,14 @@ def repost_anon_message(context: CallbackContext, msg: MsgWrapper) -> None:
     extracted_anon_text = extract_anon_message_text(msg.text)
     assert extracted_anon_text is not None
     anonimized_text = get_settings().anon_msg_prefix + extracted_anon_text
-    new_msg = send_message(
-        context.bot, msg.chat_id, parent_id=msg.parent, text=anonimized_text
+    send_message(
+        context.bot,
+        msg.chat_id,
+        parent_id=msg.parent,
+        text=anonimized_text,
+        is_anon=True,
+        save_to_db=True,
     )
-    save_message_to_db(new_msg, is_anon=True)
 
 
 def handler_receive_message(update: Update, context: CallbackContext) -> None:
