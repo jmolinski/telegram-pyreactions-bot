@@ -182,7 +182,7 @@ class TopCommandHandler(CommandHandler):
         min_timestamp = time.time_ns() - days * NS_IN_ONE_DAY
 
         query_parts = [
-            "select message.author_id, message.original_id, count(*) as c from message "
+            "select message.original_id, count(*) as c from message "
             "inner join reaction "
             "on message.id = reaction.parent "
             "where reaction.timestamp > ? "
@@ -212,7 +212,7 @@ class TopCommandHandler(CommandHandler):
 
         wait_time_between_messages = WAIT_TIME_BETWEEN_MESSAGES_SECONDS
         sent_cnt = 0
-        for user_id, message_id, cnt in reactions_received:
+        for message_id, cnt in reactions_received:
             time.sleep(wait_time_between_messages)
             try:
                 send_message(
