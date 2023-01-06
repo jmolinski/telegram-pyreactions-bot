@@ -4,6 +4,7 @@ from telegram.ext import (
     filters,
     MessageHandler,
     Application,
+    AIORateLimiter,
 )
 
 from src.handlers.messages_and_reactions import (
@@ -30,6 +31,7 @@ def main() -> None:
         Application.builder()
         .token(settings.token)
         .post_init(post_init_set_bot_commands)
+        .rate_limiter(AIORateLimiter())
         .build()
     )
 

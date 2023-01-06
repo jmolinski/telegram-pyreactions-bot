@@ -22,7 +22,6 @@ from src.handlers.common import send_message, send_reply
 
 DEFAULT_RANKING_DAYS = 7
 DEFAULT_MOST_REACTED_MSGS_TO_SHOW = 10
-WAIT_TIME_BETWEEN_MESSAGES_SECONDS = 0.5
 MAX_TIMESPAN_DAYS = 10 * 365
 MAX_TOP_MESSAGES_COUNT = 30
 NS_IN_ONE_DAY = 24 * 60 * 60 * 10**9
@@ -209,10 +208,8 @@ class TopCommandHandler(CommandHandler):
                 "".join(query_parts), query_arguments
             ).fetchall()
 
-        wait_time_between_messages = WAIT_TIME_BETWEEN_MESSAGES_SECONDS
         sent_cnt = 0
         for message_id, cnt in reactions_received:
-            time.sleep(wait_time_between_messages)
             try:
                 await send_message(
                     context.bot,
