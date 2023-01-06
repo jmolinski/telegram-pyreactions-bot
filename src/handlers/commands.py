@@ -38,6 +38,8 @@ def handler_show_ranking(update: Update, context: CallbackContext) -> None:
                 update.message.reply_text("Days argument must be >= 1.")
                 return
             days = min(days, MAX_TIMESPAN_DAYS)
+        if context.args is not None and len(context.args) > 1:
+            raise ValueError()
     except (IndexError, ValueError):
         update.message.reply_text("Usage: " + COMMANDS["ranking"]["usage"])
         return
@@ -135,6 +137,8 @@ def handler_show_messages_with_most_reactions(
                     "Number of messages must be between 1 and 30."
                 )
                 return
+        if len(context.args) > 3:
+            raise ValueError()
     except ValueError:
         update.message.reply_text("Usage: " + COMMANDS["top"]["usage"])
         return
@@ -255,6 +259,10 @@ def _get_help_text() -> str:
 
 def handler_help(update: Update, context: CallbackContext) -> None:
     help_text = _get_help_text()
+
+    if context.args:
+        update.message.reply_text("Usage: " + COMMANDS["help"]["usage"])
+        return
 
     assert update.message is not None
     update.message.reply_text(
