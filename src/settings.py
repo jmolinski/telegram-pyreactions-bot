@@ -22,6 +22,7 @@ class Settings:
     anon_messages_allowed: bool
     anon_msg_prefix: str
     display_remove_ranking_button: bool
+    silenced_chats: set[int]
 
     def __init__(self, env_file_name: str) -> None:
         with open(env_file_name) as f:
@@ -42,6 +43,7 @@ class Settings:
         self.display_remove_ranking_button = content.get(
             "display_remove_ranking_button", False
         )
+        self.silenced_chats = set(content.get("silenced_chats", []))
 
 
 def configure_settings(env_file_name: str | None = None) -> None:

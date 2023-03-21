@@ -1,17 +1,15 @@
 from __future__ import annotations
 
-from src import constants
 from typing import Any
+
+from telegram import Bot, InlineKeyboardMarkup, Update
+from telegram.ext import CallbackContext
+
+from src import constants
 from src.db import get_conn
 from src.logger import get_default_logger
 from src.message_wrapper import MsgWrapper
 from src.utils import hash_string
-from telegram import (
-    Bot,
-    Update,
-    InlineKeyboardMarkup,
-)
-from telegram.ext import CallbackContext
 
 
 def make_msg_id(msg_id: int, chat_id: int) -> int:

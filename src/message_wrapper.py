@@ -1,24 +1,23 @@
 from __future__ import annotations
 
-
 from typing import cast
 
 from telegram import Message as TelegramMessage
 
 from src.constants import (
+    REACTIONS_IN_SINGLE_MSG_LIMIT,
     TEXTUAL_NORMALIZATION,
     TEXTUAL_REACTIONS,
-    REACTIONS_IN_SINGLE_MSG_LIMIT,
 )
 from src.settings import get_settings
 from src.utils import (
-    extract_custom_reaction,
     extract_anon_message_text,
+    extract_custom_reaction,
     find_emojis_in_str,
     get_name_from_author_obj,
     is_disallowed_reaction,
-    unique_list,
     remove_emojis_from_text,
+    unique_list,
 )
 
 

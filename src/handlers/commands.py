@@ -1,24 +1,21 @@
 from __future__ import annotations
-from abc import ABC
+
 import time
-from typing import Callable, Type, Awaitable
+
+from abc import ABC
+from typing import Awaitable, Callable, Type
+
 import telegram.error
-from telegram import (
-    Update,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-)
+
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackContext
 
 from src import constants
-
 from src.db import get_conn
+from src.handlers.common import send_message, send_reply
 from src.message_wrapper import MsgWrapper
 from src.settings import get_settings
 from src.utils import _escape_markdown_v2
-
-from src.handlers.common import send_message, send_reply
-
 
 DEFAULT_RANKING_DAYS = 7
 DEFAULT_MOST_REACTED_MSGS_TO_SHOW = 10

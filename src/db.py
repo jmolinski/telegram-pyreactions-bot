@@ -7,7 +7,6 @@ from typing import Iterator
 
 from src import constants
 
-
 CONNECTION: sqlite3.Connection | None = None
 
 

@@ -1,33 +1,26 @@
 from __future__ import annotations
 
-import time
 import asyncio
+import time
+
 from collections import defaultdict
 from typing import Any
 
-from telegram import (
-    Bot,
-    InlineKeyboardButton,
-    InlineKeyboardMarkup,
-    Update,
-)
+from telegram import Bot, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import CallbackContext
 
 from src import constants
-
 from src.db import get_conn
+from src.handlers.common import make_msg_id, save_message_to_db, send_message
 from src.logger import get_default_logger
 from src.message_wrapper import MsgWrapper
 from src.settings import get_settings
 from src.utils import (
+    extract_anon_message_text,
     get_name_from_author_obj,
     get_reaction_representation,
     split_into_chunks,
-    extract_anon_message_text,
 )
-
-from src.handlers.common import save_message_to_db, make_msg_id, send_message
-
 
 MAX_REACTIONS_DISPLAYED_PER_LINE = 4
 
@@ -259,6 +252,11 @@ async def handler_receive_message(update: Update, context: CallbackContext) -> N
 
     assert update.message is not None
     msg = MsgWrapper(update.message)
+
+    if msg.chat_id in get_settings().silenced_chats:
+        save_message_to_db(msg)
+        get_default_logger().info("ignoring message from silenced chat")
+        return
 
     if msg.is_anon_message:
         await repost_anon_message(context, msg)

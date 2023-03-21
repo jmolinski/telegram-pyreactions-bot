@@ -1,6 +1,6 @@
 import logging
 
-from src.settings import get_settings, Settings
+from src.settings import Settings, get_settings
 
 __all__ = (
     "get_logger",

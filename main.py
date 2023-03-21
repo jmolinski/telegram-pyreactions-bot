@@ -1,20 +1,20 @@
 from telegram.ext import (
+    AIORateLimiter,
+    Application,
     CallbackQueryHandler,
     CommandHandler,
-    filters,
     MessageHandler,
-    Application,
-    AIORateLimiter,
+    filters,
 )
 
+from src import constants
+from src.handlers.commands import COMMANDS
 from src.handlers.messages_and_reactions import (
+    handler_button_callback,
     handler_receive_message,
     handler_save_msg_to_db,
-    handler_button_callback,
 )
-from src.handlers.commands import COMMANDS
 from src.settings import configure_settings, get_settings
-from src import constants
 
 
 async def post_init_set_bot_commands(application: Application) -> None:
