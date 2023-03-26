@@ -69,6 +69,7 @@ async def send_reply(
     is_anon: bool = False,
     **kwargs: Any,
 ) -> MsgWrapper:
+    assert update.message is not None
     parent_msg = MsgWrapper(update.message)
     reply_msg = await send_message(
         context.bot,

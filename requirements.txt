@@ -2,7 +2,7 @@ black==23.1.0
 demoji==1.1.0
 mypy==1.1.1
 mypy-extensions==1.0.0
-python-telegram-bot==20.0
+python-telegram-bot==20.2
 aiolimiter==1.0.0
-ruff==0.0.257
+ruff==0.0.259
 isort==5.12.0
